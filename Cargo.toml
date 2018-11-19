@@ -1,0 +1,16 @@
+[package]
+name = "allesatt"
+version = "0.1.0"
+authors = ["Adrian Heine <mail@adrianheine.de>"]
+
+[dependencies]
+yaml-rust = "0.4"
+unicode_reader = "0.1"
+owned_chars = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+serde = "1"
+serde_derive = "1"
+serde_json = "1.0"
+time = "0.1"
+humantime = "1"
+structopt = "0.2"
