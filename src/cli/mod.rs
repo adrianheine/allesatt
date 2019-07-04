@@ -129,11 +129,11 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
     for (count, (todo, title)) in todos.iter().enumerate() {
       if !all && count >= 3 && (todo.due > tomorrow || count >= 5) {
         if todo.due <= tomorrow {
-          eprintln!("(and more)")
+          println!("(and more)")
         }
         break;
       }
-      eprintln!(
+      println!(
         "{:0width$} {} {}",
         todo.task,
         todo.due.format("%Y-%m-%d"),
@@ -169,7 +169,7 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   {
     todos.sort_unstable_by(|(_, completed1, _), (_, completed2, _)| completed1.cmp(completed2));
     for (task_id, completed, title) in todos {
-      eprintln!(
+      println!(
         "{:0width$} {} {}",
         task_id,
         completed.format("%Y-%m-%d"),
