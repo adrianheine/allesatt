@@ -94,7 +94,7 @@ fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>
       Cmd::Later { id } => task_later(app, id),
     }
   } else {
-    list_todos(app, false)
+    list_todos(app, atty::isnt(atty::Stream::Stdout))
   }
 }
 

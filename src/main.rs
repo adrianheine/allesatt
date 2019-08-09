@@ -1,6 +1,7 @@
 #![warn(clippy::pedantic, clippy::cargo, clippy::nursery)]
 #![allow(clippy::filter_map)]
 #![allow(clippy::non_ascii_literal)]
+extern crate atty;
 extern crate chrono;
 extern crate humantime;
 extern crate owned_chars;

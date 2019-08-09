@@ -24,7 +24,7 @@ impl Display for TaskId {
 impl FromStr for TaskId {
   type Err = ParseIntError;
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    s.parse().map(TaskId)
+    s.parse().map(Self)
   }
 }
 
