@@ -4,14 +4,12 @@
 extern crate atty;
 extern crate chrono;
 extern crate humantime;
-extern crate owned_chars;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 extern crate structopt;
 extern crate time;
-extern crate yaml_rust;
 
 mod cli;
 mod core;
