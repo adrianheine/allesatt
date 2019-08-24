@@ -1,6 +1,3 @@
-mod buf_read_char_iterator;
-mod yaml_app;
-
 use chrono::{Local, NaiveDateTime};
 use humantime::Duration as HumanDuration;
 use std::borrow::{Borrow, BorrowMut};
@@ -10,7 +7,6 @@ use std::io::{stdin, stdout};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
 
-use self::yaml_app::yaml_app;
 use core::logger::ReadWriteLogger;
 use core::model::{Store, TaskId, TodoCompleted};
 use core::{Allesatt, AllesattImpl};
@@ -21,9 +17,6 @@ struct Opts {
   #[structopt(long, short, default_value = "-")]
   /// File to read from and write to. If missing or -, will use stdout and stdin.
   file: String,
-
-  #[structopt(long)]
-  import_legacy: bool,
 
   #[structopt(subcommand)]
   cmd: Option<Cmd>,
@@ -62,21 +55,17 @@ enum Cmd {
 
 pub fn cli<S: Store>(store: S) -> Result<(), Box<Error>> {
   let opts = Opts::from_args();
-  if opts.import_legacy {
-    handle_command(&opts, yaml_app())
-  } else {
-    match opts.file.as_ref() {
-      "-" => handle_command(
+  match opts.file.as_ref() {
+    "-" => handle_command(
+      &opts,
+      AllesattImpl::new(store, ReadWriteLogger::new(stdin(), stdout())),
+    ),
+    file_name => {
+      let file = OpenOptions::new().read(true).append(true).open(file_name)?;
+      handle_command(
         &opts,
-        AllesattImpl::new(store, ReadWriteLogger::new(stdin(), stdout())),
-      ),
-      file_name => {
-        let file = OpenOptions::new().read(true).append(true).open(file_name)?;
-        handle_command(
-          &opts,
-          AllesattImpl::new(store, ReadWriteLogger::new(&file, &file)),
-        )
-      }
+        AllesattImpl::new(store, ReadWriteLogger::new(&file, &file)),
+      )
     }
   }
 }
