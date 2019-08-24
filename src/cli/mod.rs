@@ -74,7 +74,7 @@ fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>
   matches: &Opts,
   app: B,
 ) -> Result<(), Box<Error>> {
-  if let Some(ref cmd) = matches.cmd {
+  if let Some(cmd) = &matches.cmd {
     match cmd {
       Cmd::List { all } => list_todos(app, *all),
       Cmd::Add { description, every } => create_task(app, description, **every),

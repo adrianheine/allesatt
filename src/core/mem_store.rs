@@ -64,14 +64,12 @@ impl Store for MemStore {
     id: &TodoId,
     completed: Option<TodoCompleted>,
   ) -> Result<(), Box<Error>> {
-    let todo = self.todos.get_mut(id).ok_or("Todo not found")?;
-    todo.completed = completed;
+    self.todos.get_mut(id).ok_or("Todo not found")?.completed = completed;
     Ok(())
   }
 
   fn set_todo_due(&mut self, id: &TodoId, due: TodoDate) -> Result<(), Box<Error>> {
-    let todo = self.todos.get_mut(id).ok_or("Todo not found")?;
-    todo.due = due;
+    self.todos.get_mut(id).ok_or("Todo not found")?.due = due;
     Ok(())
   }
 

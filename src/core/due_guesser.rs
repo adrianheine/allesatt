@@ -68,12 +68,8 @@ impl DueGuesser {
     todo_id: &TodoId,
     completed: &TodoCompleted,
   ) {
-    let task_id = store
-      .get_todo(todo_id)
-      .expect("Todo not found")
-      .task
-      .clone();
-    if let Some(info) = self.info.get_mut(&task_id) {
+    let task_id = &store.get_todo(todo_id).expect("Todo not found").task;
+    if let Some(info) = self.info.get_mut(task_id) {
       if let Some(last_completed) = info.last_completed {
         let diff = (completed.date - last_completed).to_std().unwrap();
         info.due_in = info.due_in.add_duration(diff);
