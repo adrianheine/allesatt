@@ -38,7 +38,7 @@ pub struct TodoCompleted {
 }
 
 impl TodoCompleted {
-  pub fn new(date: TodoDate) -> Self {
+  pub const fn new(date: TodoDate) -> Self {
     Self { date }
   }
 }
