@@ -15,9 +15,12 @@ use self::model::{Store, TaskId, TodoCompleted, TodoId};
 pub trait Allesatt {
   type Store: Store;
   fn create_task(&mut self, title: String, due_every: Option<Duration>) -> (TaskId, TodoId);
-  fn complete_todo(&mut self, todo_id: &TodoId, completed: TodoCompleted)
-    -> Result<(), Box<Error>>;
-  fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<Error>>;
+  fn complete_todo(
+    &mut self,
+    todo_id: &TodoId,
+    completed: TodoCompleted,
+  ) -> Result<(), Box<dyn Error>>;
+  fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>>;
   fn get_store(&self) -> &Self::Store;
 }
 
@@ -41,7 +44,7 @@ impl<S: Store> Allesatt for AllesattInner<S> {
     &mut self,
     todo_id: &TodoId,
     completed: TodoCompleted,
-  ) -> Result<(), Box<Error>> {
+  ) -> Result<(), Box<dyn Error>> {
     self
       .due_guesser
       .handle_completion(&self.store, todo_id, &completed);
@@ -57,7 +60,7 @@ impl<S: Store> Allesatt for AllesattInner<S> {
     Ok(())
   }
 
-  fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<Error>> {
+  fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>> {
     let due = self.due_guesser.guess_later(&self.store, todo_id);
     self.store.set_todo_due(todo_id, due)?;
     Ok(())
@@ -103,13 +106,13 @@ impl<S: Store, L: Logger> Allesatt for AllesattImpl<S, L> {
     &mut self,
     todo_id: &TodoId,
     completed: TodoCompleted,
-  ) -> Result<(), Box<Error>> {
+  ) -> Result<(), Box<dyn Error>> {
     self.inner.complete_todo(todo_id, completed.clone())?;
     self.logger.log_complete_todo(todo_id, &completed)?;
     Ok(())
   }
 
-  fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<Error>> {
+  fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>> {
     self.inner.todo_later(todo_id)?;
     self.logger.log_todo_later(todo_id)?;
     Ok(())

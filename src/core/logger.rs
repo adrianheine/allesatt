@@ -6,20 +6,20 @@ use std::io::{BufRead, BufReader, Lines, Read, Write};
 use std::time::Duration;
 
 pub trait Logger {
-  fn play_back<A: Allesatt>(&mut self, app: &mut A) -> Result<(), Box<Error>>;
+  fn play_back<A: Allesatt>(&mut self, app: &mut A) -> Result<(), Box<dyn Error>>;
   fn log_create_task(
     &mut self,
     title: &str,
     due_every: &Option<Duration>,
     task_id: &TaskId,
     todo_id: &TodoId,
-  ) -> Result<(), Box<Error>>;
+  ) -> Result<(), Box<dyn Error>>;
   fn log_complete_todo(
     &mut self,
     todo_id: &TodoId,
     completed: &TodoCompleted,
-  ) -> Result<(), Box<Error>>;
-  fn log_todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<Error>>;
+  ) -> Result<(), Box<dyn Error>>;
+  fn log_todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct ReadWriteLogger<R: Read, W: Write> {
@@ -37,7 +37,7 @@ impl<R: Read, W: Write> ReadWriteLogger<R, W> {
 }
 
 impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
-  fn play_back<A: Allesatt>(&mut self, app: &mut A) -> Result<(), Box<Error>> {
+  fn play_back<A: Allesatt>(&mut self, app: &mut A) -> Result<(), Box<dyn Error>> {
     while let Some(line_result) = self.source.next() {
       let line = line_result?;
       match line.split_at(line.find(':').ok_or_else(|| String::from("Invalid line"))? + 1) {
@@ -69,7 +69,7 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
     due_every: &Option<Duration>,
     task_id: &TaskId,
     todo_id: &TodoId,
-  ) -> Result<(), Box<Error>> {
+  ) -> Result<(), Box<dyn Error>> {
     writeln!(
       &mut self.target,
       "create_task1: [{}, {}, {}, {}]",
@@ -85,7 +85,7 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
     &mut self,
     todo_id: &TodoId,
     completed: &TodoCompleted,
-  ) -> Result<(), Box<Error>> {
+  ) -> Result<(), Box<dyn Error>> {
     writeln!(
       &mut self.target,
       "complete_todo1: [{}, {}]",
@@ -95,7 +95,7 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
     Ok(())
   }
 
-  fn log_todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<Error>> {
+  fn log_todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>> {
     writeln!(&mut self.target, "todo_later1: [{}]", to_json(todo_id)?)?;
     Ok(())
   }

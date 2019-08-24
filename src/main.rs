@@ -21,6 +21,6 @@ use std::error::Error;
 
 use cli::cli;
 
-fn main() -> Result<(), Box<Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
   cli(MemStore::new())
 }

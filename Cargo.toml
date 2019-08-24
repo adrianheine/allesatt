@@ -2,10 +2,12 @@
 name = "allesatt"
 version = "0.1.0"
 authors = ["Adrian Heine <mail@adrianheine.de>"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/adrianheine/allesatt"
 
 [dependencies]
 yaml-rust = "0.4"
-unicode_reader = "0.1"
+unicode_reader = "1.0"
 owned_chars = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 serde = "1"

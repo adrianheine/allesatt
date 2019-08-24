@@ -1,6 +1,7 @@
 use chrono::{Local, NaiveDateTime};
 use humantime::Duration as HumanDuration;
 use std::borrow::{Borrow, BorrowMut};
+use std::convert::TryInto;
 use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::{stdin, stdout};
@@ -53,7 +54,7 @@ enum Cmd {
   Later { id: TaskId },
 }
 
-pub fn cli<S: Store>(store: S) -> Result<(), Box<Error>> {
+pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
   let opts = Opts::from_args();
   match opts.file.as_ref() {
     "-" => handle_command(
@@ -73,7 +74,7 @@ pub fn cli<S: Store>(store: S) -> Result<(), Box<Error>> {
 fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   matches: &Opts,
   app: B,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
   if let Some(cmd) = &matches.cmd {
     match cmd {
       Cmd::List { all } => list_todos(app, *all),
@@ -90,7 +91,7 @@ fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>
 fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   app: B,
   all: bool,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
   let todo_ids = store.get_todos(None, Some(false));
   let mut todos: Vec<_> = todo_ids
@@ -107,11 +108,13 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
     .max()
   {
     let tomorrow = NaiveDateTime::from_timestamp(
-      SystemTime::now()
+      (SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs() as i64
-        + 60 * 60 * 24,
+        .as_secs() as u64
+        + 60 * 60 * 24)
+        .try_into()
+        .unwrap(),
       0,
     );
     todos.sort_unstable_by(|(todo1, _), (todo2, _)| todo1.due.cmp(&todo2.due));
@@ -136,7 +139,7 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
 
 fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   app: B,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
   let todo_ids = store.get_todos(None, Some(true));
   let mut todos: Vec<_> = todo_ids
@@ -170,7 +173,9 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   Ok(())
 }
 
-fn list_tasks<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(app: B) -> Result<(), Box<Error>> {
+fn list_tasks<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
+  app: B,
+) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
   let task_ids = store.get_tasks();
   if let Some(max_id_len) = task_ids.iter().map(|id| id.to_string().len()).max() {
@@ -190,7 +195,7 @@ fn create_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   mut app: B,
   description: &str,
   due_every: Duration,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
   app
     .borrow_mut()
     .create_task(description.into(), Some(due_every));
@@ -200,7 +205,7 @@ fn create_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
 fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   mut app: B,
   id: &TaskId,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
   let todo = app
     .borrow()
     .get_store()
@@ -218,7 +223,7 @@ fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
 fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   mut app: B,
   id: &TaskId,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
   let todo = app
     .borrow()
     .get_store()

@@ -76,8 +76,8 @@ pub trait Store {
     &mut self,
     todo: &TodoId,
     completed: Option<TodoCompleted>,
-  ) -> Result<(), Box<Error>>;
-  fn set_todo_due(&mut self, todo: &TodoId, due: TodoDate) -> Result<(), Box<Error>>;
+  ) -> Result<(), Box<dyn Error>>;
+  fn set_todo_due(&mut self, todo: &TodoId, due: TodoDate) -> Result<(), Box<dyn Error>>;
 
   fn get_task(&self, task: &TaskId) -> Option<&Task>;
   fn get_todo(&self, todo: &TodoId) -> Option<&Todo>;
