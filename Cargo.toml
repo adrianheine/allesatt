@@ -7,6 +7,7 @@ repository = "https://github.com/adrianheine/allesatt"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+libc = "0.x"
 serde = "1"
 serde_derive = "1"
 serde_json = "1.0"

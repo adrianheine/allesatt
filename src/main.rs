@@ -4,6 +4,7 @@
 extern crate atty;
 extern crate chrono;
 extern crate humantime;
+extern crate libc;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -20,5 +21,10 @@ use std::error::Error;
 use cli::cli;
 
 fn main() -> Result<(), Box<dyn Error>> {
+  // Don't ignore SIGPIPE
+  // https://github.com/rust-lang/rust/issues/62569
+  unsafe {
+    libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+  }
   cli(MemStore::new())
 }
