@@ -15,6 +15,7 @@ use self::model::{Store, TaskId, TodoCompleted, TodoId};
 pub trait Allesatt {
   type Store: Store;
   fn create_task(&mut self, title: String, due_every: Option<Duration>) -> (TaskId, TodoId);
+  fn clone_task(&mut self, task_id: &TaskId, title: String) -> (TaskId, TodoId);
   fn complete_todo(
     &mut self,
     todo_id: &TodoId,
@@ -38,6 +39,25 @@ impl<S: Store> Allesatt for AllesattInner<S> {
     self.due_guesser.init_task(&self.store, &task_id, due_every);
     let todo_id = self.store.create_todo(&task_id, Local::now().naive_local());
     (task_id, todo_id)
+  }
+
+  fn clone_task(&mut self, task_id: &TaskId, title: String) -> (TaskId, TodoId) {
+    let new_task_id = self.store.create_task(title);
+    self
+      .due_guesser
+      .copy_task(&self.store, &new_task_id, task_id);
+    for old_todo_id in self.store.get_todos(Some(task_id), Some(true)) {
+      let todo = self.store.get_todo(&old_todo_id).unwrap().clone();
+      let todo_id = self.store.create_todo(&new_task_id, todo.due);
+      self
+        .store
+        .set_todo_completed(&todo_id, todo.completed)
+        .unwrap();
+    }
+    let old_todo_id = &self.store.get_todos(Some(task_id), Some(false))[0];
+    let todo = self.store.get_todo(old_todo_id).unwrap().clone();
+    let todo_id = self.store.create_todo(&new_task_id, todo.due);
+    (new_task_id, todo_id)
   }
 
   fn complete_todo(
@@ -100,6 +120,15 @@ impl<S: Store, L: Logger> Allesatt for AllesattImpl<S, L> {
       .log_create_task(title.as_ref(), &due_every, &task_id, &todo_id)
       .expect("Error logging task creation");
     (task_id, todo_id)
+  }
+
+  fn clone_task(&mut self, task_id: &TaskId, title: String) -> (TaskId, TodoId) {
+    let (new_task_id, todo_id) = self.inner.clone_task(task_id, title.clone());
+    self
+      .logger
+      .log_clone_task(task_id, title.as_ref(), &new_task_id, &todo_id)
+      .expect("Error logging task creation");
+    (new_task_id, todo_id)
   }
 
   fn complete_todo(

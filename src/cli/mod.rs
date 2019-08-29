@@ -41,6 +41,10 @@ enum Cmd {
     description: String,
   },
 
+  #[structopt(name = "clone")]
+  /// Clone a task
+  Clone { id: TaskId, description: String },
+
   #[structopt(name = "do")]
   /// Complete a task
   Do { id: TaskId },
@@ -77,11 +81,12 @@ fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>
 ) -> Result<(), Box<dyn Error>> {
   if let Some(cmd) = &matches.cmd {
     match cmd {
-      Cmd::List { all } => list_todos(app, *all),
       Cmd::Add { description, every } => create_task(app, description, **every),
+      Cmd::Clone { id, description } => clone_task(app, id, description),
       Cmd::Do { id } => do_task(app, id),
       Cmd::Done => list_done_todos(app),
       Cmd::Later { id } => task_later(app, id),
+      Cmd::List { all } => list_todos(app, *all),
     }
   } else {
     list_todos(app, atty::isnt(atty::Stream::Stdout))
@@ -181,6 +186,15 @@ fn create_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   let (task_id, todo_id) = app
     .borrow_mut()
     .create_task(description.into(), Some(due_every));
+  print_todo(app.borrow().get_store(), &task_id, &todo_id)
+}
+
+fn clone_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
+  mut app: B,
+  id: &TaskId,
+  description: &str,
+) -> Result<(), Box<dyn Error>> {
+  let (task_id, todo_id) = app.borrow_mut().clone_task(id, description.into());
   print_todo(app.borrow().get_store(), &task_id, &todo_id)
 }
 

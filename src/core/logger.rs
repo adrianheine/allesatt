@@ -14,6 +14,13 @@ pub trait Logger {
     task_id: &TaskId,
     todo_id: &TodoId,
   ) -> Result<(), Box<dyn Error>>;
+  fn log_clone_task(
+    &mut self,
+    task_id: &TaskId,
+    title: &str,
+    new_task_id: &TaskId,
+    todo_id: &TodoId,
+  ) -> Result<(), Box<dyn Error>>;
   fn log_complete_todo(
     &mut self,
     todo_id: &TodoId,
@@ -47,6 +54,20 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
             return Err("Mismatch in task or todo ids".into());
           }
         }
+        ("clone_task1:", v) => {
+          let (task_id, title, new_task_id, todo_id) = from_json(v)?;
+          let expected_result = (new_task_id, todo_id);
+          let result = app.clone_task(&task_id, title);
+          if expected_result != result {
+            return Err(
+              format!(
+                "Mismatch in task or todo ids: expected {:?}, found {:?}",
+                expected_result, result
+              )
+              .into(),
+            );
+          }
+        }
         ("complete_todo1:", v) => {
           let (todo_id, completed) = from_json(v)?;
           app.complete_todo(&todo_id, completed)?;
@@ -60,6 +81,24 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
         }
       }
     }
+    Ok(())
+  }
+
+  fn log_clone_task(
+    &mut self,
+    task_id: &TaskId,
+    title: &str,
+    new_task_id: &TaskId,
+    todo_id: &TodoId,
+  ) -> Result<(), Box<dyn Error>> {
+    writeln!(
+      &mut self.target,
+      "clone_task1: [{}, {}, {}, {}]",
+      to_json(task_id)?,
+      to_json(title)?,
+      to_json(new_task_id)?,
+      to_json(todo_id)?
+    )?;
     Ok(())
   }
 

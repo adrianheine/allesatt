@@ -5,7 +5,7 @@ use time::Duration as OldDuration;
 
 use core::model::{Store, TaskId, TodoCompleted, TodoDate, TodoId};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 enum DueIn {
   Calculated(Duration, u32),
   Fixed(Duration),
@@ -33,7 +33,7 @@ impl DueIn {
   }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct DueInfo {
   due_in: DueIn,
   last_completed: Option<TodoDate>,
@@ -59,6 +59,13 @@ impl DueGuesser {
         },
         last_completed: None,
       },
+    );
+  }
+
+  pub fn copy_task<S: Store>(&mut self, _store: &S, task_id: &TaskId, other_task_id: &TaskId) {
+    self.info.insert(
+      task_id.clone(),
+      (*self.info.get(other_task_id).unwrap()).clone(),
     );
   }
 
