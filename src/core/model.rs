@@ -81,7 +81,6 @@ pub trait Store {
 
   fn get_task(&self, task: &TaskId) -> Option<&Task>;
   fn get_todo(&self, todo: &TodoId) -> Option<&Todo>;
-  fn get_tasks(&self) -> Vec<TaskId>;
   fn get_todos(&self, task_id_filter: Option<&TaskId>, completed_filter: Option<bool>)
     -> Vec<Todo>;
   fn find_open_todo(&self, task: &TaskId) -> Option<&Todo>;

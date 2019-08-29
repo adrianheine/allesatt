@@ -73,10 +73,6 @@ impl Store for MemStore {
     Ok(())
   }
 
-  fn get_tasks(&self) -> Vec<TaskId> {
-    self.tasks.keys().cloned().collect()
-  }
-
   fn get_todos(
     &self,
     task_id_filter: Option<&TaskId>,
