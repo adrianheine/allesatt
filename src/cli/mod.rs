@@ -98,11 +98,10 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   all: bool,
 ) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
-  let todo_ids = store.get_todos(None, Some(false));
-  let mut todos: Vec<_> = todo_ids
+  let mut todos: Vec<_> = store
+    .get_todos(None, Some(false))
     .into_iter()
-    .map(|todo_id| {
-      let todo = store.get_todo(&todo_id).unwrap();
+    .map(|todo| {
       let task = store.get_task(&todo.task).unwrap();
       (todo, task.title.clone())
     })
@@ -146,17 +145,12 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   app: B,
 ) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
-  let todo_ids = store.get_todos(None, Some(true));
-  let mut todos: Vec<_> = todo_ids
+  let mut todos: Vec<_> = store
+    .get_todos(None, Some(true))
     .into_iter()
-    .map(|todo_id| {
-      let todo = store.get_todo(&todo_id).unwrap();
+    .map(|todo| {
       let task = store.get_task(&todo.task).unwrap();
-      (
-        todo.task.clone(),
-        todo.completed.clone().unwrap().date,
-        task.title.clone(),
-      )
+      (todo.task, todo.completed.unwrap().date, task.title.clone())
     })
     .collect();
   if let Some(max_id_len) = todos
@@ -216,9 +210,9 @@ fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   let todo = app
     .borrow()
     .get_store()
-    .get_todos(Some(id), Some(false))
-    .first()
+    .find_open_todo(id)
     .ok_or_else(|| String::from("Task not found"))?
+    .id
     .clone();
   app
     .borrow_mut()
@@ -234,9 +228,9 @@ fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   let todo = app
     .borrow()
     .get_store()
-    .get_todos(Some(id), Some(false))
-    .first()
+    .find_open_todo(id)
     .ok_or_else(|| String::from("Task not found"))?
+    .id
     .clone();
   app.borrow_mut().todo_later(&todo)?;
 

@@ -46,17 +46,15 @@ impl<S: Store> Allesatt for AllesattInner<S> {
     self
       .due_guesser
       .copy_task(&self.store, &new_task_id, task_id);
-    for old_todo_id in self.store.get_todos(Some(task_id), Some(true)) {
-      let todo = self.store.get_todo(&old_todo_id).unwrap().clone();
+    for todo in self.store.get_todos(Some(task_id), Some(true)) {
       let todo_id = self.store.create_todo(&new_task_id, todo.due);
       self
         .store
         .set_todo_completed(&todo_id, todo.completed)
         .unwrap();
     }
-    let old_todo_id = &self.store.get_todos(Some(task_id), Some(false))[0];
-    let todo = self.store.get_todo(old_todo_id).unwrap().clone();
-    let todo_id = self.store.create_todo(&new_task_id, todo.due);
+    let due = self.store.find_open_todo(task_id).unwrap().due;
+    let todo_id = self.store.create_todo(&new_task_id, due);
     (new_task_id, todo_id)
   }
 
