@@ -9,7 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
 
 use core::logger::ReadWriteLogger;
-use core::model::{Store, TaskId, TodoCompleted};
+use core::model::{Store, TaskId, TodoCompleted, TodoId};
 use core::{Allesatt, AllesattImpl};
 
 #[derive(Debug, StructOpt)]
@@ -173,33 +173,26 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   Ok(())
 }
 
-fn list_tasks<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
-  app: B,
-) -> Result<(), Box<dyn Error>> {
-  let store = app.borrow().get_store();
-  let task_ids = store.get_tasks();
-  if let Some(max_id_len) = task_ids.iter().map(|id| id.to_string().len()).max() {
-    let mut tasks: Vec<_> = task_ids
-      .into_iter()
-      .map(|task_id| store.get_task(&task_id).unwrap())
-      .collect();
-    tasks.sort_unstable_by_key(|task| &task.title);
-    for task in tasks {
-      eprintln!("{:0width$} {}", task.id, task.title, width = max_id_len);
-    }
-  }
-  Ok(())
-}
-
 fn create_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   mut app: B,
   description: &str,
   due_every: Duration,
 ) -> Result<(), Box<dyn Error>> {
-  app
+  let (task_id, todo_id) = app
     .borrow_mut()
     .create_task(description.into(), Some(due_every));
-  list_tasks(app)
+  print_todo(app.borrow().get_store(), &task_id, &todo_id)
+}
+
+fn print_todo<S: Store>(
+  store: &S,
+  task_id: &TaskId,
+  todo_id: &TodoId,
+) -> Result<(), Box<dyn Error>> {
+  let task = store.get_task(task_id).unwrap();
+  let todo = store.get_todo(todo_id).unwrap();
+  eprintln!("{} {} {}", task_id, todo.due.format("%Y-%m-%d"), task.title,);
+  Ok(())
 }
 
 fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
