@@ -15,7 +15,11 @@ use self::model::{Store, TaskId, TodoCompleted, TodoId};
 pub trait Allesatt {
   type Store: Store;
   fn create_task(&mut self, title: String, due_every: Option<Duration>) -> (TaskId, TodoId);
-  fn clone_task(&mut self, task_id: &TaskId, title: String) -> (TaskId, TodoId);
+  fn clone_task(
+    &mut self,
+    task_id: &TaskId,
+    title: String,
+  ) -> Result<(TaskId, TodoId), Box<dyn Error>>;
   fn complete_todo(
     &mut self,
     todo_id: &TodoId,
@@ -41,7 +45,12 @@ impl<S: Store> Allesatt for AllesattInner<S> {
     (task_id, todo_id)
   }
 
-  fn clone_task(&mut self, task_id: &TaskId, title: String) -> (TaskId, TodoId) {
+  fn clone_task(
+    &mut self,
+    task_id: &TaskId,
+    title: String,
+  ) -> Result<(TaskId, TodoId), Box<dyn Error>> {
+    self.store.get_task(task_id).ok_or("task not found")?;
     let new_task_id = self.store.create_task(title);
     self
       .due_guesser
@@ -55,7 +64,7 @@ impl<S: Store> Allesatt for AllesattInner<S> {
     }
     let due = self.store.find_open_todo(task_id).unwrap().due;
     let todo_id = self.store.create_todo(&new_task_id, due);
-    (new_task_id, todo_id)
+    Ok((new_task_id, todo_id))
   }
 
   fn complete_todo(
@@ -120,13 +129,17 @@ impl<S: Store, L: Logger> Allesatt for AllesattImpl<S, L> {
     (task_id, todo_id)
   }
 
-  fn clone_task(&mut self, task_id: &TaskId, title: String) -> (TaskId, TodoId) {
-    let (new_task_id, todo_id) = self.inner.clone_task(task_id, title.clone());
+  fn clone_task(
+    &mut self,
+    task_id: &TaskId,
+    title: String,
+  ) -> Result<(TaskId, TodoId), Box<dyn Error>> {
+    let (new_task_id, todo_id) = self.inner.clone_task(task_id, title.clone())?;
     self
       .logger
       .log_clone_task(task_id, title.as_ref(), &new_task_id, &todo_id)
       .expect("Error logging task creation");
-    (new_task_id, todo_id)
+    Ok((new_task_id, todo_id))
   }
 
   fn complete_todo(

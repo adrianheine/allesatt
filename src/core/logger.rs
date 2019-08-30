@@ -57,7 +57,7 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
         ("clone_task1:", v) => {
           let (task_id, title, new_task_id, todo_id) = from_json(v)?;
           let expected_result = (new_task_id, todo_id);
-          let result = app.clone_task(&task_id, title);
+          let result = app.clone_task(&task_id, title)?;
           if expected_result != result {
             return Err(
               format!(

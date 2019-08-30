@@ -188,7 +188,7 @@ fn clone_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   id: &TaskId,
   description: &str,
 ) -> Result<(), Box<dyn Error>> {
-  let (task_id, todo_id) = app.borrow_mut().clone_task(id, description.into());
+  let (task_id, todo_id) = app.borrow_mut().clone_task(id, description.into())?;
   print_todo(app.borrow().get_store(), &task_id, &todo_id)
 }
 
