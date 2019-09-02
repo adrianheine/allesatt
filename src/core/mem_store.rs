@@ -90,6 +90,6 @@ impl Store for MemStore {
   }
 
   fn find_open_todo(&self, task: &TaskId) -> Option<&Todo> {
-    self.todos.values().find(|todo| todo.task == *task)
+    self.todos.values().find(|todo| todo.task == *task && todo.completed.is_none())
   }
 }
