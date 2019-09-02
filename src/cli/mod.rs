@@ -13,7 +13,7 @@ use core::model::{Store, TaskId, TodoCompleted, TodoId};
 use core::{Allesatt, AllesattImpl};
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "Allesatt", version = "v0.1", rename_all = "kebab-case")]
+#[structopt(name = "Allesatt", author, about)]
 struct Opts {
   #[structopt(long, short, default_value = "-")]
   /// File to read from and write to. If missing or -, will use stdout and stdin.
@@ -25,7 +25,7 @@ struct Opts {
 
 #[derive(Debug, StructOpt)]
 enum Cmd {
-  #[structopt(name = "list", visible_alias = "ls")]
+  #[structopt(visible_alias = "ls")]
   /// List tasks
   List {
     #[structopt(long)]
@@ -33,7 +33,6 @@ enum Cmd {
     all: bool,
   },
 
-  #[structopt(name = "add")]
   /// Add a new task
   Add {
     #[structopt(long, default_value = "30days")]
@@ -41,19 +40,15 @@ enum Cmd {
     description: String,
   },
 
-  #[structopt(name = "clone")]
   /// Clone a task
   Clone { id: TaskId, description: String },
 
-  #[structopt(name = "do")]
   /// Complete a task
   Do { id: TaskId },
 
-  #[structopt(name = "done")]
   /// Show completed tasks
   Done,
 
-  #[structopt(name = "later")]
   /// Mark a task as being due later
   Later { id: TaskId },
 }
