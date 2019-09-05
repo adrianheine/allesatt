@@ -47,7 +47,7 @@ enum Cmd {
   Do { id: TaskId },
 
   /// Show completed tasks
-  Done,
+  Done { id: Option<TaskId> },
 
   /// Mark a task as being due later
   Later { id: TaskId },
@@ -79,7 +79,7 @@ fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>
       Cmd::Add { description, every } => create_task(app, description, **every),
       Cmd::Clone { id, description } => clone_task(app, id, description),
       Cmd::Do { id } => do_task(app, id),
-      Cmd::Done => list_done_todos(app),
+      Cmd::Done { id } => list_done_todos(app, id),
       Cmd::Later { id } => task_later(app, id),
       Cmd::List { all } => list_todos(app, *all),
     }
@@ -138,10 +138,11 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
 
 fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   app: B,
+  id: &Option<TaskId>,
 ) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
   let mut todos: Vec<_> = store
-    .get_todos(None, Some(true))
+    .get_todos(id.as_ref(), Some(true))
     .into_iter()
     .map(|todo| {
       let task = store.get_task(&todo.task).unwrap();
