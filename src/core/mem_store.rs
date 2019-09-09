@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 
-use core::model::{Store, Task, TaskId, Todo, TodoCompleted, TodoDate, TodoId};
+use crate::core::model::{Store, Task, TaskId, Todo, TodoCompleted, TodoDate, TodoId};
 
 #[derive(Debug)]
 pub struct MemStore {
@@ -90,6 +90,9 @@ impl Store for MemStore {
   }
 
   fn find_open_todo(&self, task: &TaskId) -> Option<&Todo> {
-    self.todos.values().find(|todo| todo.task == *task && todo.completed.is_none())
+    self
+      .todos
+      .values()
+      .find(|todo| todo.task == *task && todo.completed.is_none())
   }
 }

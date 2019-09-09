@@ -1,5 +1,6 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_derive::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt::{Display, Error as FmtError, Formatter};
 use std::num::ParseIntError;

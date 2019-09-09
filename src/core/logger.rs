@@ -1,5 +1,5 @@
-use core::model::{TaskId, TodoCompleted, TodoId};
-use core::Allesatt;
+use crate::core::model::{TaskId, TodoCompleted, TodoId};
+use crate::core::Allesatt;
 use serde_json::{from_str as from_json, to_string as to_json};
 use std::error::Error;
 use std::io::{BufRead, BufReader, Lines, Read, Write};

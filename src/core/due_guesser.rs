@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use time::Duration as OldDuration;
 
-use core::model::{Store, TaskId, TodoCompleted, TodoDate, TodoId};
+use crate::core::model::{Store, TaskId, TodoCompleted, TodoDate, TodoId};
 
 #[derive(Copy, Clone, Debug)]
 enum DueIn {
@@ -17,18 +17,18 @@ const DEFAULT_PERIOD: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 impl DueIn {
   fn get(&self) -> Duration {
     match *self {
-      DueIn::Calculated(sum, count) => sum / count,
-      DueIn::Fixed(v) => v,
-      DueIn::None => DEFAULT_PERIOD,
+      Self::Calculated(sum, count) => sum / count,
+      Self::Fixed(v) => v,
+      Self::None => DEFAULT_PERIOD,
     }
   }
 
   fn add_duration(&self, duration: Duration) -> Self {
-    if let DueIn::Calculated(sum, count) = *self {
+    if let Self::Calculated(sum, count) = *self {
       let new_count = 10.min(count + 1);
-      DueIn::Calculated(duration + (sum / count) * (new_count - 1), new_count)
+      Self::Calculated(duration + (sum / count) * (new_count - 1), new_count)
     } else {
-      DueIn::Calculated(duration, 1)
+      Self::Calculated(duration, 1)
     }
   }
 }
@@ -114,9 +114,9 @@ mod test {
   use std::time::Duration;
   use time::Duration as OldDuration;
 
-  use core::mem_store::MemStore;
-  use core::model::{Store, TodoCompleted};
-  use core::DueGuesser;
+  use crate::core::mem_store::MemStore;
+  use crate::core::model::{Store, TodoCompleted};
+  use crate::core::DueGuesser;
 
   #[test]
   fn ignores_fixed_after_two_completions() {

@@ -8,9 +8,9 @@ use std::io::{stdin, stdout};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
 
-use core::logger::ReadWriteLogger;
-use core::model::{Store, TaskId, TodoCompleted, TodoId};
-use core::{Allesatt, AllesattImpl};
+use crate::core::logger::ReadWriteLogger;
+use crate::core::model::{Store, TaskId, TodoCompleted, TodoId};
+use crate::core::{Allesatt, AllesattImpl};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Allesatt", author, about)]
@@ -76,7 +76,7 @@ fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>
 ) -> Result<(), Box<dyn Error>> {
   if let Some(cmd) = &matches.cmd {
     match cmd {
-      Cmd::Add { description, every } => create_task(app, description, **every),
+      Cmd::Add { description, every } => create_task(app, description, every),
       Cmd::Clone { id, description } => clone_task(app, id, description),
       Cmd::Do { id } => do_task(app, id),
       Cmd::Done { id } => list_done_todos(app, id),
@@ -110,7 +110,7 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
       (SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs() as u64
+        .as_secs()
         + 60 * 60 * 24)
         .try_into()
         .unwrap(),
@@ -171,11 +171,11 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
 fn create_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
   mut app: B,
   description: &str,
-  due_every: Duration,
+  due_every: &Duration,
 ) -> Result<(), Box<dyn Error>> {
   let (task_id, todo_id) = app
     .borrow_mut()
-    .create_task(description.into(), Some(due_every));
+    .create_task(description.into(), Some(*due_every));
   print_todo(app.borrow().get_store(), &task_id, &todo_id)
 }
 
@@ -225,7 +225,7 @@ fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
     .borrow()
     .get_store()
     .find_open_todo(id)
-    .ok_or_else(|| String::from("Task not found"))?
+    .ok_or("Task not found")?
     .id
     .clone();
   app.borrow_mut().todo_later(&todo)?;
