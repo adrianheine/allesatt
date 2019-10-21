@@ -1,8 +1,10 @@
 use crate::core::model::{TaskId, TodoCompleted, TodoId};
 use crate::core::Allesatt;
 use serde_json::{from_str as from_json, to_string as to_json};
+use std::borrow::BorrowMut;
 use std::error::Error;
 use std::io::{BufRead, BufReader, Lines, Read, Write};
+use std::marker::PhantomData;
 use std::time::Duration;
 
 pub trait Logger {
@@ -29,21 +31,23 @@ pub trait Logger {
   fn log_todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct ReadWriteLogger<R: Read, W: Write> {
+pub struct ReadWriteLogger<R: Read, IW: Write, W: BorrowMut<IW>> {
   source: Lines<BufReader<R>>,
   target: W,
+  phantom: PhantomData<IW>,
 }
 
-impl<R: Read, W: Write> ReadWriteLogger<R, W> {
+impl<R: Read, IW: Write, W: BorrowMut<IW>> ReadWriteLogger<R, IW, W> {
   pub fn new(source: R, target: W) -> Self {
     Self {
       source: BufReader::new(source).lines(),
       target,
+      phantom: PhantomData::<IW>::default(),
     }
   }
 }
 
-impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
+impl<R: Read, IW: Write, W: BorrowMut<IW>> Logger for ReadWriteLogger<R, IW, W> {
   fn play_back<A: Allesatt>(&mut self, app: &mut A) -> Result<(), Box<dyn Error>> {
     while let Some(line_result) = self.source.next() {
       let line = line_result?;
@@ -92,7 +96,7 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
     todo_id: &TodoId,
   ) -> Result<(), Box<dyn Error>> {
     writeln!(
-      &mut self.target,
+      self.target.borrow_mut(),
       "clone_task1: [{}, {}, {}, {}]",
       to_json(task_id)?,
       to_json(title)?,
@@ -110,7 +114,7 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
     todo_id: &TodoId,
   ) -> Result<(), Box<dyn Error>> {
     writeln!(
-      &mut self.target,
+      self.target.borrow_mut(),
       "create_task1: [{}, {}, {}, {}]",
       to_json(title)?,
       to_json(due_every)?,
@@ -126,7 +130,7 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
     completed: &TodoCompleted,
   ) -> Result<(), Box<dyn Error>> {
     writeln!(
-      &mut self.target,
+      self.target.borrow_mut(),
       "complete_todo1: [{}, {}]",
       to_json(todo_id)?,
       to_json(completed)?
@@ -135,7 +139,11 @@ impl<R: Read, W: Write> Logger for ReadWriteLogger<R, W> {
   }
 
   fn log_todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>> {
-    writeln!(&mut self.target, "todo_later1: [{}]", to_json(todo_id)?)?;
+    writeln!(
+      self.target.borrow_mut(),
+      "todo_later1: [{}]",
+      to_json(todo_id)?
+    )?;
     Ok(())
   }
 }

@@ -4,7 +4,7 @@ use std::borrow::{Borrow, BorrowMut};
 use std::convert::TryInto;
 use std::error::Error;
 use std::fs::OpenOptions;
-use std::io::{stdin, stdout};
+use std::io::{stderr, stdin, stdout, Stdout, Write};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
 
@@ -53,43 +53,67 @@ enum Cmd {
   Later { id: TaskId },
 }
 
+impl Cmd {
+  pub fn readonly(&self) -> bool {
+    match self {
+      Self::List { .. } | Self::Done { .. } => true,
+      _ => false,
+    }
+  }
+}
+
 pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
   let opts = Opts::from_args();
   match opts.file.as_ref() {
     "-" => handle_command(
-      &opts,
-      AllesattImpl::new(store, ReadWriteLogger::new(stdin(), stdout())),
+      &opts.cmd,
+      AllesattImpl::new(
+        store,
+        ReadWriteLogger::<_, Stdout, _>::new(stdin(), &mut stdout()),
+      ),
     ),
     file_name => {
       let file = OpenOptions::new().read(true).append(true).open(file_name)?;
       handle_command(
-        &opts,
+        &opts.cmd,
         AllesattImpl::new(store, ReadWriteLogger::new(&file, &file)),
       )
     }
   }
 }
-
 fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
-  matches: &Opts,
+  command: &Option<Cmd>,
   app: B,
 ) -> Result<(), Box<dyn Error>> {
-  if let Some(cmd) = &matches.cmd {
-    match cmd {
-      Cmd::Add { description, every } => create_task(app, description, every),
-      Cmd::Clone { id, description } => clone_task(app, id, description),
-      Cmd::Do { id } => do_task(app, id),
-      Cmd::Done { id } => list_done_todos(app, id),
-      Cmd::Later { id } => task_later(app, id),
-      Cmd::List { all } => list_todos(app, *all),
-    }
+  let default = Cmd::List {
+    all: atty::isnt(atty::Stream::Stdout),
+  };
+  let cmd = command.as_ref().unwrap_or(&default);
+  if cmd.readonly() {
+    handle_command_impl(cmd, app, &mut stdout())
   } else {
-    list_todos(app, atty::isnt(atty::Stream::Stdout))
+    handle_command_impl(cmd, app, &mut stderr())
   }
 }
 
-fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
+fn handle_command_impl<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
+  command: &Cmd,
   app: B,
+  output: &mut W,
+) -> Result<(), Box<dyn Error>> {
+  match command {
+    Cmd::Add { description, every } => create_task(app, output, description, every),
+    Cmd::Clone { id, description } => clone_task(app, output, id, description),
+    Cmd::Do { id } => do_task(app, output, id),
+    Cmd::Done { id } => list_done_todos(app, output, id),
+    Cmd::Later { id } => task_later(app, output, id),
+    Cmd::List { all } => list_todos(app, output, *all),
+  }
+}
+
+fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
+  app: B,
+  output: &mut W,
   all: bool,
 ) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
@@ -120,24 +144,26 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
     for (count, (todo, title)) in todos.iter().enumerate() {
       if !all && count >= 3 && (todo.due > tomorrow || count >= 5) {
         if todo.due <= tomorrow {
-          println!("(and more)")
+          writeln!(output, "(and more)")?;
         }
         break;
       }
-      println!(
+      writeln!(
+        output,
         "{:0width$} {} {}",
         todo.task,
         todo.due.format("%Y-%m-%d"),
         title,
         width = max_id_len
-      );
+      )?;
     }
   }
   Ok(())
 }
 
-fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
+fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
   app: B,
+  output: &mut W,
   id: &Option<TaskId>,
 ) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
@@ -156,69 +182,82 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>>(
   {
     todos.sort_unstable_by(|(_, completed1, _), (_, completed2, _)| completed1.cmp(completed2));
     for (task_id, completed, title) in todos {
-      println!(
+      writeln!(
+        output,
         "{:0width$} {} {}",
         task_id,
         completed.format("%Y-%m-%d"),
         title,
         width = max_id_len
-      );
+      )?;
     }
   }
   Ok(())
 }
 
-fn create_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
+fn create_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
   mut app: B,
+  output: &mut W,
   description: &str,
   due_every: &Duration,
 ) -> Result<(), Box<dyn Error>> {
   let (task_id, todo_id) = app
     .borrow_mut()
     .create_task(description.into(), Some(*due_every));
-  print_todo(app.borrow().get_store(), &task_id, &todo_id)
+  print_todo(app.borrow().get_store(), output, &task_id, &todo_id)
 }
 
-fn clone_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
+fn clone_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
   mut app: B,
+  output: &mut W,
   id: &TaskId,
   description: &str,
 ) -> Result<(), Box<dyn Error>> {
   let (task_id, todo_id) = app.borrow_mut().clone_task(id, description.into())?;
-  print_todo(app.borrow().get_store(), &task_id, &todo_id)
+  print_todo(app.borrow().get_store(), output, &task_id, &todo_id)
 }
 
-fn print_todo<S: Store>(
+fn print_todo<S: Store, W: Write>(
   store: &S,
+  output: &mut W,
   task_id: &TaskId,
   todo_id: &TodoId,
 ) -> Result<(), Box<dyn Error>> {
   let task = store.get_task(task_id).unwrap();
   let todo = store.get_todo(todo_id).unwrap();
-  eprintln!("{} {} {}", task_id, todo.due.format("%Y-%m-%d"), task.title,);
+  writeln!(
+    output,
+    "{} {} {}",
+    task_id,
+    todo.due.format("%Y-%m-%d"),
+    task.title,
+  )?;
   Ok(())
 }
 
-fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
+fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
   mut app: B,
+  output: &mut W,
   id: &TaskId,
 ) -> Result<(), Box<dyn Error>> {
   let todo = app
     .borrow()
     .get_store()
     .find_open_todo(id)
-    .ok_or_else(|| String::from("Task not found"))?
+    .ok_or("Task not found")?
     .id
     .clone();
   app
     .borrow_mut()
     .complete_todo(&todo, TodoCompleted::new(Local::now().naive_local()))?;
-
-  Ok(())
+  let store = app.borrow().get_store();
+  let todo = store.find_open_todo(id).ok_or("Task not found")?;
+  print_todo(store, output, id, &todo.id)
 }
 
-fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
+fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
   mut app: B,
+  output: &mut W,
   id: &TaskId,
 ) -> Result<(), Box<dyn Error>> {
   let todo = app
@@ -229,6 +268,36 @@ fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
     .id
     .clone();
   app.borrow_mut().todo_later(&todo)?;
+  let store = app.borrow().get_store();
+  print_todo(store, output, id, &todo)
+}
 
-  Ok(())
+#[cfg(test)]
+mod tests {
+  use super::{handle_command_impl, Cmd};
+  use crate::core::logger::ReadWriteLogger;
+  use crate::core::mem_store::MemStore;
+  use crate::core::AllesattImpl;
+
+  fn exec_command(cmd: Cmd, log_in: &str) -> (Vec<u8>, Vec<u8>) {
+    let mut output = Vec::new();
+    let mut log_out: Vec<u8> = Vec::new();
+    handle_command_impl(
+      &cmd,
+      AllesattImpl::new(
+        MemStore::new(),
+        ReadWriteLogger::<_, Vec<u8>, _>::new(log_in.as_bytes(), &mut log_out),
+      ),
+      &mut output,
+    )
+    .unwrap();
+    (log_out, output)
+  }
+
+  #[test]
+  fn test_handle_command_impl() {
+    let (log_out, output) = exec_command(Cmd::List { all: true }, "");
+    assert_eq!(output, "".as_bytes());
+    assert_eq!(log_out, "".as_bytes());
+  }
 }
