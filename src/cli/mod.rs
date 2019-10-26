@@ -186,7 +186,11 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
     .into_iter()
     .map(|todo| {
       let task = store.get_task(&todo.task).unwrap();
-      (todo.task, todo.completed.unwrap().date, task.title.clone())
+      (
+        todo.task.clone(),
+        todo.completed.as_ref().unwrap().date,
+        task.title.clone(),
+      )
     })
     .collect();
   if let Some(max_id_len) = todos

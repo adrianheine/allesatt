@@ -81,7 +81,7 @@ impl Store for MemStore {
     &self,
     task_id_filter: Option<&TaskId>,
     completed_filter: Option<bool>,
-  ) -> Vec<Todo> {
+  ) -> Vec<&Todo> {
     self
       .todos
       .values()
@@ -89,7 +89,6 @@ impl Store for MemStore {
         task_id_filter.map_or(true, |task_id| *task_id == todo.task)
           && completed_filter.map_or(true, |completed| completed == todo.completed.is_some())
       })
-      .cloned()
       .collect()
   }
 
