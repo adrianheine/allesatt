@@ -278,8 +278,9 @@ mod tests {
   use crate::core::logger::ReadWriteLogger;
   use crate::core::mem_store::MemStore;
   use crate::core::AllesattImpl;
+  use chrono::Local;
 
-  fn exec_command(cmd: Cmd, log_in: &str) -> (Vec<u8>, Vec<u8>) {
+  fn exec_command(cmd: Cmd, log_in: &str) -> (String, String) {
     let mut output = Vec::new();
     let mut log_out: Vec<u8> = Vec::new();
     handle_command_impl(
@@ -291,13 +292,32 @@ mod tests {
       &mut output,
     )
     .unwrap();
-    (log_out, output)
+    (
+      String::from_utf8(log_out).unwrap(),
+      String::from_utf8(output).unwrap(),
+    )
   }
 
   #[test]
   fn test_handle_command_impl() {
     let (log_out, output) = exec_command(Cmd::List { all: true }, "");
-    assert_eq!(output, "".as_bytes());
-    assert_eq!(log_out, "".as_bytes());
+    assert_eq!(output, "");
+    assert_eq!(log_out, "");
+
+    let (log_out, output) = exec_command(
+      Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "task".into(),
+      },
+      "",
+    );
+    assert_eq!(
+      output,
+      format!("1 {} task\n", Local::now().naive_local().format("%Y-%m-%d"))
+    );
+    assert_eq!(
+      log_out,
+      "create_task1: [\"task\", {\"secs\":2592000,\"nanos\":0}, 1, 1]\n"
+    );
   }
 }

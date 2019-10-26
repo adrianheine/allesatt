@@ -16,7 +16,7 @@
   clippy::pedantic
 )]
 #![warn(clippy::module_name_repetitions, unused)]
-// Fix this for an actually usable crate
+// Fix these for an actually usable crate
 #![allow(clippy::cargo_common_metadata, unreachable_pub, rustdoc, missing_docs)]
 
 use libc;
