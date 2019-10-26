@@ -1,16 +1,9 @@
-pub mod logger;
-pub mod mem_store;
-pub mod model;
-
-mod due_guesser;
-
 use chrono::Local;
 use std::error::Error;
 use std::time::Duration;
 
-use self::due_guesser::DueGuesser;
-use self::logger::Logger;
-use self::model::{Store, TaskId, TodoCompleted, TodoId};
+use super::due_guesser::DueGuesser;
+use super::{Logger, Store, TaskId, TodoCompleted, TodoId};
 
 pub trait Allesatt {
   type Store: Store;
@@ -31,7 +24,7 @@ pub trait Allesatt {
 }
 
 #[derive(Debug)]
-pub struct AllesattInner<S: Store> {
+struct AllesattInner<S: Store> {
   store: S,
   due_guesser: DueGuesser,
 }
@@ -119,13 +112,13 @@ impl<S: Store> Allesatt for AllesattInner<S> {
 }
 
 #[derive(Debug)]
-pub struct AllesattImpl<S: Store, L: Logger> {
+struct AllesattImpl<S: Store, L: Logger> {
   inner: AllesattInner<S>,
   logger: L,
 }
 
 impl<S: Store, L: Logger> AllesattImpl<S, L> {
-  pub fn new(store: S, mut logger: L) -> Self {
+  fn new(store: S, mut logger: L) -> Self {
     let mut inner = AllesattInner {
       store,
       due_guesser: DueGuesser::new(),
@@ -187,4 +180,8 @@ impl<S: Store, L: Logger> Allesatt for AllesattImpl<S, L> {
   fn get_store(&self) -> &Self::Store {
     &self.inner.store
   }
+}
+
+pub fn new(store: impl Store, logger: impl Logger) -> impl Allesatt {
+  AllesattImpl::new(store, logger)
 }

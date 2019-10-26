@@ -23,10 +23,10 @@ use libc;
 use std::error::Error;
 
 mod cli;
-mod core;
+mod engine;
 
-use crate::cli::cli;
-use crate::core::mem_store::MemStore;
+use cli::cli;
+use engine::MemStore;
 
 fn main() -> Result<(), Box<dyn Error>> {
   // Don't ignore SIGPIPE

@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_derive::{Deserialize, Serialize};
-use std::error::Error;
+
 use std::fmt::{Display, Error as FmtError, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -68,26 +68,4 @@ pub struct Todo {
   pub task: TaskId,
   pub completed: Option<TodoCompleted>,
   pub due: TodoDate,
-}
-
-pub trait Store {
-  fn create_task(&mut self, title: String) -> TaskId;
-  fn create_todo(&mut self, task: &TaskId, due: TodoDate) -> TodoId;
-  fn set_todo_completed(
-    &mut self,
-    todo: &TodoId,
-    completed: Option<TodoCompleted>,
-  ) -> Result<(), Box<dyn Error>>;
-  fn set_todo_due(&mut self, todo: &TodoId, due: TodoDate) -> Result<(), Box<dyn Error>>;
-  fn delete_todo(&mut self, todo: &TodoId) -> Result<(), Box<dyn Error>>;
-
-  fn get_task(&self, task: &TaskId) -> Option<&Task>;
-  fn get_tasks(&self) -> Vec<&Task>;
-  fn get_todo(&self, todo: &TodoId) -> Option<&Todo>;
-  fn get_todos(
-    &self,
-    task_id_filter: Option<&TaskId>,
-    completed_filter: Option<bool>,
-  ) -> Vec<&Todo>;
-  fn find_open_todo(&self, task: &TaskId) -> Option<&Todo>;
 }

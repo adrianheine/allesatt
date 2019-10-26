@@ -1,11 +1,11 @@
-use crate::core::model::{TaskId, TodoCompleted, TodoId};
-use crate::core::Allesatt;
 use serde_json::{from_str as from_json, to_string as to_json};
 use std::borrow::BorrowMut;
 use std::error::Error;
 use std::io::{BufRead, BufReader, Lines, Read, Write};
 use std::marker::PhantomData;
 use std::time::Duration;
+
+use super::{Allesatt, TaskId, TodoCompleted, TodoId};
 
 pub trait Logger {
   fn play_back<A: Allesatt>(&mut self, app: &mut A) -> Result<(), Box<dyn Error>>;

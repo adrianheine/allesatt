@@ -8,9 +8,9 @@ use std::io::{stderr, stdin, stdout, Stdout, Write};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
 
-use crate::core::logger::ReadWriteLogger;
-use crate::core::model::{Store, TaskId, Todo, TodoCompleted, TodoId};
-use crate::core::{Allesatt, AllesattImpl};
+use crate::engine::{
+  new as new_engine, Allesatt, ReadWriteLogger, Store, TaskId, Todo, TodoCompleted, TodoId,
+};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Allesatt", author, about)]
@@ -70,7 +70,7 @@ pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
   match opts.file.as_ref() {
     "-" => handle_command(
       &opts.cmd,
-      AllesattImpl::new(
+      new_engine(
         store,
         ReadWriteLogger::<_, Stdout, _>::new(stdin(), &mut stdout()),
       ),
@@ -79,7 +79,7 @@ pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
       let file = OpenOptions::new().read(true).append(true).open(file_name)?;
       handle_command(
         &opts.cmd,
-        AllesattImpl::new(store, ReadWriteLogger::new(&file, &file)),
+        new_engine(store, ReadWriteLogger::new(&file, &file)),
       )
     }
   }
@@ -313,10 +313,7 @@ fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: 
 #[cfg(test)]
 mod tests {
   use super::{handle_command_impl, Cmd};
-  use crate::core::logger::ReadWriteLogger;
-  use crate::core::mem_store::MemStore;
-  use crate::core::model::TaskId;
-  use crate::core::AllesattImpl;
+  use crate::engine::{new as new_engine, MemStore, ReadWriteLogger, TaskId};
   use chrono::Local;
   use humantime::parse_duration;
   use regex::{escape, Regex};
@@ -337,7 +334,7 @@ mod tests {
     let mut log_out: Vec<u8> = Vec::new();
     handle_command_impl(
       &cmd,
-      AllesattImpl::new(
+      new_engine(
         MemStore::new(),
         ReadWriteLogger::<_, Vec<u8>, _>::new(log_in.as_bytes(), &mut log_out),
       ),

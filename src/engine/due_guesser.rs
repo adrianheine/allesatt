@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use time::Duration as OldDuration;
 
-use crate::core::model::{Store, TaskId, TodoCompleted, TodoDate, TodoId};
+use super::{Store, TaskId, TodoCompleted, TodoDate, TodoId};
 
 #[derive(Copy, Clone, Debug)]
 enum DueIn {
@@ -114,9 +114,9 @@ mod test {
   use std::time::Duration;
   use time::Duration as OldDuration;
 
-  use crate::core::mem_store::MemStore;
-  use crate::core::model::{Store, TodoCompleted};
-  use crate::core::DueGuesser;
+  use super::DueGuesser;
+  use crate::engine::mem_store::MemStore;
+  use crate::engine::{Store, TodoCompleted};
 
   #[test]
   fn ignores_fixed_after_two_completions() {

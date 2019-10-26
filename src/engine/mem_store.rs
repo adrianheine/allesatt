@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 
-use crate::core::model::{Store, Task, TaskId, Todo, TodoCompleted, TodoDate, TodoId};
+use super::{Store, Task, TaskId, Todo, TodoCompleted, TodoDate, TodoId};
 
 #[derive(Debug)]
 pub struct MemStore {
