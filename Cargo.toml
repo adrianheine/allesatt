@@ -16,3 +16,9 @@ time = "0.1"
 humantime = "1"
 structopt = "0.3"
 atty = "0.2"
+
+[dev-dependencies.regex]
+version = "1"
+default-features = false
+# regex currently requires the standard library, you must re-enable it.
+features = ["std"]

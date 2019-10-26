@@ -9,7 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
 
 use crate::core::logger::ReadWriteLogger;
-use crate::core::model::{Store, TaskId, TodoCompleted, TodoId};
+use crate::core::model::{Store, TaskId, Todo, TodoCompleted, TodoId};
 use crate::core::{Allesatt, AllesattImpl};
 
 #[derive(Debug, StructOpt)]
@@ -51,6 +51,9 @@ enum Cmd {
 
   /// Mark a task as being due later
   Later { id: TaskId },
+
+  /// Mark a task as not needing doing currently
+  Pause { id: TaskId },
 }
 
 impl Cmd {
@@ -108,6 +111,7 @@ fn handle_command_impl<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borro
     Cmd::Done { id } => list_done_todos(app, output, id),
     Cmd::Later { id } => task_later(app, output, id),
     Cmd::List { all } => list_todos(app, output, *all),
+    Cmd::Pause { id } => pause_task(app, output, id),
   }
 }
 
@@ -117,19 +121,20 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
   all: bool,
 ) -> Result<(), Box<dyn Error>> {
   let store = app.borrow().get_store();
-  let mut todos: Vec<_> = store
-    .get_todos(None, Some(false))
-    .into_iter()
-    .map(|todo| {
-      let task = store.get_task(&todo.task).unwrap();
-      (todo, task.title.clone())
-    })
-    .collect();
-  if let Some(max_id_len) = todos
-    .iter()
-    .map(|(todo, _)| todo.task.to_string().len())
-    .max()
-  {
+  let tasks = store.get_tasks();
+  if let Some(max_id_len) = tasks.iter().map(|task| task.id.to_string().len()).max() {
+    let mut todos: Vec<(&Todo, String)> = Vec::with_capacity(tasks.len());
+    let mut paused_tasks = Vec::new();
+    for task in tasks {
+      if let Some(todo) = store.find_open_todo(&task.id) {
+        let pos = todos
+          .binary_search_by_key(&todo.due, |&(t, _)| t.due)
+          .unwrap_or_else(|e| e);
+        todos.insert(pos, (todo, task.title.clone()));
+      } else {
+        paused_tasks.push(task);
+      }
+    }
     let tomorrow = NaiveDateTime::from_timestamp(
       (SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -140,7 +145,6 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
         .unwrap(),
       0,
     );
-    todos.sort_unstable_by(|(todo1, _), (todo2, _)| todo1.due.cmp(&todo2.due));
     for (count, (todo, title)) in todos.iter().enumerate() {
       if !all && count >= 3 && (todo.due > tomorrow || count >= 5) {
         if todo.due <= tomorrow {
@@ -156,6 +160,16 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
         title,
         width = max_id_len
       )?;
+    }
+
+    if !paused_tasks.is_empty() {
+      if !todos.is_empty() {
+        writeln!(output)?;
+      }
+      writeln!(output, "Paused tasks:")?;
+      for task in paused_tasks {
+        print_paused_task(store, output, &task.id)?;
+      }
     }
   }
   Ok(())
@@ -235,6 +249,16 @@ fn print_todo<S: Store, W: Write>(
   Ok(())
 }
 
+fn print_paused_task<S: Store, W: Write>(
+  store: &S,
+  output: &mut W,
+  task_id: &TaskId,
+) -> Result<(), Box<dyn Error>> {
+  let task = store.get_task(task_id).unwrap();
+  writeln!(output, "{} {}", task_id, task.title,)?;
+  Ok(())
+}
+
 fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
   mut app: B,
   output: &mut W,
@@ -253,6 +277,16 @@ fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Wri
   let store = app.borrow().get_store();
   let todo = store.find_open_todo(id).ok_or("Task not found")?;
   print_todo(store, output, id, &todo.id)
+}
+
+fn pause_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
+  mut app: B,
+  output: &mut W,
+  id: &TaskId,
+) -> Result<(), Box<dyn Error>> {
+  app.borrow_mut().pause_task(id)?;
+  let store = app.borrow().get_store();
+  print_paused_task(store, output, id)
 }
 
 fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
@@ -277,10 +311,24 @@ mod tests {
   use super::{handle_command_impl, Cmd};
   use crate::core::logger::ReadWriteLogger;
   use crate::core::mem_store::MemStore;
+  use crate::core::model::TaskId;
   use crate::core::AllesattImpl;
   use chrono::Local;
+  use humantime::parse_duration;
+  use regex::{escape, Regex};
+  use std::borrow::Borrow;
+  use std::fmt::Display;
+  use std::str::FromStr;
+  use time::Duration as TimeDuration;
 
-  fn exec_command(cmd: Cmd, log_in: &str) -> (String, String) {
+  fn today_plus(days: u8) -> impl Display {
+    (Local::now().naive_local()
+      + TimeDuration::from_std(parse_duration(&(days.to_string() + "d")).unwrap()).unwrap())
+    .format("%Y-%m-%d")
+  }
+
+  fn exec_command(cmd: Cmd, log_in: impl Borrow<str>) -> (String, String) {
+    let log_in = log_in.borrow();
     let mut output = Vec::new();
     let mut log_out: Vec<u8> = Vec::new();
     handle_command_impl(
@@ -292,8 +340,9 @@ mod tests {
       &mut output,
     )
     .unwrap();
+    let log_out = String::from_utf8(log_out).unwrap();
     (
-      String::from_utf8(log_out).unwrap(),
+      String::with_capacity(log_in.len() + log_out.len()) + log_in + &log_out,
       String::from_utf8(output).unwrap(),
     )
   }
@@ -309,15 +358,54 @@ mod tests {
         every: "30days".parse().unwrap(),
         description: "task".into(),
       },
-      "",
+      log_out,
     );
-    assert_eq!(
-      output,
-      format!("1 {} task\n", Local::now().naive_local().format("%Y-%m-%d"))
-    );
+    assert_eq!(output, format!("1 {} task\n", today_plus(0)));
     assert_eq!(
       log_out,
       "create_task1: [\"task\", {\"secs\":2592000,\"nanos\":0}, 1, 1]\n"
     );
+
+    let (log_out, output) = exec_command(
+      Cmd::Do {
+        id: TaskId::from_str("1").unwrap(),
+      },
+      log_out,
+    );
+    assert_eq!(output, format!("1 {} task\n", today_plus(30)));
+    let r = Regex::new(
+      &(escape(
+        r#"create_task1: ["task", {"secs":2592000,"nanos":0}, 1, 1]
+complete_todo1: [1, ""#,
+      ) + &today_plus(0).to_string()
+        + r#"T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+"\]
+"#),
+    )
+    .unwrap();
+    assert!(r.is_match(&log_out));
+
+    let (log_out, output) = exec_command(
+      Cmd::Later {
+        id: TaskId::from_str("1").unwrap(),
+      },
+      log_out,
+    );
+    assert_eq!(output, format!("1 {} task\n", today_plus(30 + 6)));
+    let r = Regex::new(&(r.to_string() + "todo_later1: \\[2\\]\n")).unwrap();
+    assert!(r.is_match(&log_out));
+
+    let (log_out, output) = exec_command(
+      Cmd::Pause {
+        id: TaskId::from_str("1").unwrap(),
+      },
+      log_out,
+    );
+    assert_eq!(output, "1 task\n");
+    let r = Regex::new(&(r.to_string() + "pause_task1: \\[1\\]\n")).unwrap();
+    assert!(r.is_match(&log_out));
+
+    let (new_log_out, output) = exec_command(Cmd::List { all: false }, log_out.as_ref());
+    assert_eq!(output, "Paused tasks:\n1 task\n");
+    assert_eq!(new_log_out, log_out);
   }
 }

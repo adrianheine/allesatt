@@ -26,6 +26,7 @@ pub trait Allesatt {
     completed: TodoCompleted,
   ) -> Result<(), Box<dyn Error>>;
   fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>>;
+  fn pause_task(&mut self, task_id: &TaskId) -> Result<(), Box<dyn Error>>;
   fn get_store(&self) -> &Self::Store;
 }
 
@@ -62,7 +63,11 @@ impl<S: Store> Allesatt for AllesattInner<S> {
         .set_todo_completed(&todo_id, todo.completed)
         .unwrap();
     }
-    let due = self.store.find_open_todo(task_id).unwrap().due;
+    let due = self
+      .store
+      .find_open_todo(task_id)
+      .ok_or("Cloning paused tasks is not implemented")?
+      .due;
     let todo_id = self.store.create_todo(&new_task_id, due);
     Ok((new_task_id, todo_id))
   }
@@ -90,6 +95,17 @@ impl<S: Store> Allesatt for AllesattInner<S> {
   fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>> {
     let due = self.due_guesser.guess_later(&self.store, todo_id);
     self.store.set_todo_due(todo_id, due)?;
+    Ok(())
+  }
+
+  fn pause_task(&mut self, task_id: &TaskId) -> Result<(), Box<dyn Error>> {
+    let todo_id = self
+      .store
+      .find_open_todo(task_id)
+      .ok_or("Task not found or already paused")?
+      .id
+      .clone();
+    self.store.delete_todo(&todo_id)?;
     Ok(())
   }
 
@@ -155,6 +171,12 @@ impl<S: Store, L: Logger> Allesatt for AllesattImpl<S, L> {
   fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>> {
     self.inner.todo_later(todo_id)?;
     self.logger.log_todo_later(todo_id)?;
+    Ok(())
+  }
+
+  fn pause_task(&mut self, task_id: &TaskId) -> Result<(), Box<dyn Error>> {
+    self.inner.pause_task(task_id)?;
+    self.logger.log_pause_task(task_id)?;
     Ok(())
   }
 

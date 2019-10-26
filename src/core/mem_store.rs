@@ -50,6 +50,10 @@ impl Store for MemStore {
     self.todos.insert(self.last_todo_id.clone(), todo);
     self.last_todo_id.clone()
   }
+  fn delete_todo(&mut self, todo: &TodoId) -> Result<(), Box<dyn Error>> {
+    self.todos.remove(todo).ok_or("Todo not found")?;
+    Ok(())
+  }
 
   fn get_task(&self, task: &TaskId) -> Option<&Task> {
     self.tasks.get(task)
@@ -94,5 +98,9 @@ impl Store for MemStore {
       .todos
       .values()
       .find(|todo| todo.task == *task && todo.completed.is_none())
+  }
+
+  fn get_tasks(&self) -> Vec<&Task> {
+    self.tasks.values().collect()
   }
 }

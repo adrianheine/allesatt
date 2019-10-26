@@ -79,8 +79,10 @@ pub trait Store {
     completed: Option<TodoCompleted>,
   ) -> Result<(), Box<dyn Error>>;
   fn set_todo_due(&mut self, todo: &TodoId, due: TodoDate) -> Result<(), Box<dyn Error>>;
+  fn delete_todo(&mut self, todo: &TodoId) -> Result<(), Box<dyn Error>>;
 
   fn get_task(&self, task: &TaskId) -> Option<&Task>;
+  fn get_tasks(&self) -> Vec<&Task>;
   fn get_todo(&self, todo: &TodoId) -> Option<&Todo>;
   fn get_todos(&self, task_id_filter: Option<&TaskId>, completed_filter: Option<bool>)
     -> Vec<Todo>;
