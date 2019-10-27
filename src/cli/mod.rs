@@ -154,9 +154,9 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
       }
       writeln!(
         output,
-        "{:0width$} {} {}",
-        todo.task,
+        "{} {:width$} {}",
         todo.due.format("%Y-%m-%d"),
+        todo.task,
         title,
         width = max_id_len
       )?;
@@ -202,9 +202,9 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
     for (task_id, completed, title) in todos {
       writeln!(
         output,
-        "{:0width$} {} {}",
-        task_id,
+        "{} {:width$} {}",
         completed.format("%Y-%m-%d"),
+        task_id,
         title,
         width = max_id_len
       )?;
