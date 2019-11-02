@@ -40,6 +40,9 @@ impl Store for MemStore {
   }
 
   fn create_todo(&mut self, task: &TaskId, due: TodoDate) -> TodoId {
+    if let Some(other) = self.find_open_todo(task) {
+      panic!(format!("Already has an open todo for {:?} ({:?})", task, other));
+    }
     self.last_todo_id = TodoId(self.last_todo_id.0 + 1);
     let todo = Todo {
       id: self.last_todo_id.clone(),
