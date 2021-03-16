@@ -1,6 +1,6 @@
-use chrono::Local;
 use std::error::Error;
 use std::time::Duration;
+use time::OffsetDateTime;
 
 use super::due_guesser::DueGuesser;
 use super::{Logger, Store, TaskId, TodoCompleted, TodoId};
@@ -35,7 +35,7 @@ impl<S: Store> Allesatt for AllesattInner<S> {
   fn create_task(&mut self, title: String, due_every: Option<Duration>) -> (TaskId, TodoId) {
     let task_id = self.store.create_task(title);
     self.due_guesser.init_task(&self.store, &task_id, due_every);
-    let todo_id = self.store.create_todo(&task_id, Local::now().naive_local());
+    let todo_id = self.store.create_todo(&task_id, OffsetDateTime::now_utc());
     (task_id, todo_id)
   }
 

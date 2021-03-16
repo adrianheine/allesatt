@@ -1,10 +1,10 @@
-use chrono::NaiveDateTime;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error as _;
+use serde::{self, Deserializer, Serializer};
 use serde_derive::{Deserialize, Serialize};
-
 use std::fmt::{Display, Error as FmtError, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
+use time::{OffsetDateTime, PrimitiveDateTime};
 
 // FIXME TaskId should probably be store-dependent and just move there
 #[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone)]
@@ -31,7 +31,7 @@ impl FromStr for TaskId {
 
 #[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone)]
 pub struct TodoId(pub u64);
-pub type TodoDate = NaiveDateTime;
+pub type TodoDate = OffsetDateTime;
 
 #[derive(Clone, Debug)]
 pub struct TodoCompleted {
@@ -44,21 +44,26 @@ impl TodoCompleted {
   }
 }
 
-impl Serialize for TodoCompleted {
+impl serde::Serialize for TodoCompleted {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
   where
     S: Serializer,
   {
-    self.date.serialize(serializer)
+    serializer.serialize_str(&self.date.format("%FT%T.%N"))
   }
 }
 
-impl<'de> Deserialize<'de> for TodoCompleted {
+impl<'de> serde::Deserialize<'de> for TodoCompleted {
   fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
   where
     D: Deserializer<'de>,
   {
-    TodoDate::deserialize(deserializer).map(Self::new)
+    let s = String::deserialize(deserializer)?;
+    match PrimitiveDateTime::parse(&s, "%FT%T.%N").or_else(|_| PrimitiveDateTime::parse(s, "%FT%T"))
+    {
+      Ok(v) => Ok(Self::new(v.assume_utc())),
+      Err(e) => Err(D::Error::custom(e.to_string())),
+    }
   }
 }
 

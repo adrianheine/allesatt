@@ -1,12 +1,11 @@
-use chrono::{Local, NaiveDateTime};
 use humantime::Duration as HumanDuration;
 use std::borrow::{Borrow, BorrowMut};
-use std::convert::TryInto;
 use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::{stderr, stdin, stdout, Stdout, Write};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
+use time::Duration;
+use time::OffsetDateTime;
 
 use crate::engine::{
   new as new_engine, Allesatt, ReadWriteLogger, Store, TaskId, Todo, TodoCompleted, TodoId,
@@ -135,16 +134,7 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
         paused_tasks.push(task);
       }
     }
-    let tomorrow = NaiveDateTime::from_timestamp(
-      (SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        + 60 * 60 * 24)
-        .try_into()
-        .unwrap(),
-      0,
-    );
+    let tomorrow = OffsetDateTime::now_utc() + Duration::day();
     for (count, (todo, title)) in todos.iter().enumerate() {
       if !all && count >= 3 && (todo.due > tomorrow || count >= 5) {
         if todo.due <= tomorrow {
@@ -217,11 +207,11 @@ fn create_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W:
   mut app: B,
   output: &mut W,
   description: &str,
-  due_every: &Duration,
+  due_every: &HumanDuration,
 ) -> Result<(), Box<dyn Error>> {
   let (task_id, todo_id) = app
     .borrow_mut()
-    .create_task(description.into(), Some(*due_every));
+    .create_task(description.into(), Some(**due_every));
   print_todo(app.borrow().get_store(), output, &task_id, &todo_id)
 }
 
@@ -277,7 +267,7 @@ fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Wri
     .clone();
   app
     .borrow_mut()
-    .complete_todo(&todo, TodoCompleted::new(Local::now().naive_local()))?;
+    .complete_todo(&todo, TodoCompleted::new(OffsetDateTime::now_utc()))?;
   let store = app.borrow().get_store();
   let todo = store.find_open_todo(id).ok_or("Task not found")?;
   print_todo(store, output, id, &todo.id)
@@ -314,18 +304,14 @@ fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: 
 mod tests {
   use super::{handle_command_impl, Cmd};
   use crate::engine::{new as new_engine, MemStore, ReadWriteLogger, TaskId};
-  use chrono::Local;
-  use humantime::parse_duration;
   use regex::{escape, Regex};
   use std::borrow::Borrow;
   use std::fmt::Display;
   use std::str::FromStr;
-  use time::Duration as TimeDuration;
+  use time::{Duration, OffsetDateTime};
 
-  fn today_plus(days: u8) -> impl Display {
-    (Local::now().naive_local()
-      + TimeDuration::from_std(parse_duration(&(days.to_string() + "d")).unwrap()).unwrap())
-    .format("%Y-%m-%d")
+  fn today_plus(days: i64) -> impl Display {
+    (OffsetDateTime::now_utc() + Duration::days(days)).format("%Y-%m-%d")
   }
 
   fn exec_command(cmd: Cmd, log_in: impl Borrow<str>) -> (String, String) {
