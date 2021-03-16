@@ -125,17 +125,21 @@ mod test {
     let task_id = store.create_task("Task".into());
     let now = Local::now().naive_local();
     let todo1_id = store.create_todo(&task_id, now);
-    let todo2_id = store.create_todo(&task_id, now);
     due_guesser.init_task(
       &store,
       &task_id,
       Some(Duration::from_secs(5 * 24 * 60 * 60)),
     );
-    due_guesser.handle_completion(&store, &todo1_id, &TodoCompleted::new(now));
+    let completed = TodoCompleted::new(now);
+    due_guesser.handle_completion(&store, &todo1_id, &completed);
     assert_eq!(
       due_guesser.guess_due(&store, &task_id),
       now + OldDuration::days(5)
     );
+    store
+      .set_todo_completed(&todo1_id, Some(completed))
+      .unwrap();
+    let todo2_id = store.create_todo(&task_id, now);
     due_guesser.handle_completion(
       &store,
       &todo2_id,
@@ -152,16 +156,31 @@ mod test {
     let mut due_guesser = DueGuesser::new();
     let mut store = MemStore::new();
     let task_id = store.create_task("Task".into());
-    let mut now = Local::now().naive_local();
     due_guesser.init_task(&store, &task_id, None);
+
+    let mut now = Local::now().naive_local();
+    let completed = TodoCompleted::new(now);
     let todo1_id = store.create_todo(&task_id, now);
-    due_guesser.handle_completion(&store, &todo1_id, &TodoCompleted::new(now));
+    due_guesser.handle_completion(&store, &todo1_id, &completed);
+    store
+      .set_todo_completed(&todo1_id, Some(completed))
+      .unwrap();
+
     now += OldDuration::days(2);
+    let completed = TodoCompleted::new(now);
     let todo2_id = store.create_todo(&task_id, now);
     due_guesser.handle_completion(&store, &todo2_id, &TodoCompleted::new(now));
+    store
+      .set_todo_completed(&todo2_id, Some(completed))
+      .unwrap();
+
     now += OldDuration::days(4);
+    let completed = TodoCompleted::new(now);
     let todo3_id = store.create_todo(&task_id, now);
     due_guesser.handle_completion(&store, &todo3_id, &TodoCompleted::new(now));
+    store
+      .set_todo_completed(&todo3_id, Some(completed))
+      .unwrap();
     assert_eq!(
       due_guesser.guess_due(&store, &task_id),
       now + OldDuration::days(3)
