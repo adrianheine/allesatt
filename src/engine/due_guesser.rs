@@ -9,33 +9,34 @@ use time::OffsetDateTime;
 enum DueIn {
   Calculated(Duration, u32),
   Fixed(Duration),
-  None,
 }
 
 const DEFAULT_PERIOD: Duration = Duration::days(30);
 
 impl DueIn {
-  fn get(&self) -> Duration {
-    match *self {
-      Self::Calculated(sum, count) => sum / count,
-      Self::Fixed(v) => v,
-      Self::None => DEFAULT_PERIOD,
+  const fn new(duration: Duration) -> Self {
+    Self::Fixed(duration)
+  }
+  fn get(v: Option<Self>) -> Duration {
+    match v {
+      Some(Self::Calculated(sum, count)) => sum / count,
+      Some(Self::Fixed(v)) => v,
+      _ => DEFAULT_PERIOD,
     }
   }
-
-  fn add_duration(&self, duration: Duration) -> Self {
-    if let Self::Calculated(sum, count) = *self {
+  fn add(v: Option<Self>, duration: Duration) -> Option<Self> {
+    Some(if let Some(Self::Calculated(sum, count)) = v {
       let new_count = 10.min(count + 1);
       Self::Calculated(duration + (sum / count) * (new_count - 1), new_count)
     } else {
       Self::Calculated(duration, 1)
-    }
+    })
   }
 }
 
 #[derive(Clone, Debug)]
 struct DueInfo {
-  due_in: DueIn,
+  due_in: Option<DueIn>,
   last_completed: Option<TodoDate>,
 }
 
@@ -58,10 +59,7 @@ impl DueGuesser {
     self.info.insert(
       task_id.clone(),
       DueInfo {
-        due_in: match due_after {
-          Some(d) => DueIn::Fixed(d.try_into().unwrap()),
-          None => DueIn::None,
-        },
+        due_in: due_after.map(|d| DueIn::new(d.try_into().unwrap())),
         last_completed: None,
       },
     );
@@ -84,27 +82,25 @@ impl DueGuesser {
     if let Some(info) = self.info.get_mut(task_id) {
       if let Some(last_completed) = info.last_completed {
         let diff = completed.date - last_completed;
-        info.due_in = info.due_in.add_duration(diff);
+        info.due_in = DueIn::add(info.due_in, diff);
       }
       info.last_completed = Some(completed.date);
     }
   }
 
   pub fn guess_due<S: Store>(&self, _store: &S, task_id: &TaskId) -> TodoDate {
-    self.info.get(task_id).map_or_else(
-      || OffsetDateTime::now_utc() + DEFAULT_PERIOD,
-      |info| info.last_completed.unwrap_or_else(OffsetDateTime::now_utc) + info.due_in.get(),
-    )
+    let info = self.info.get(task_id);
+    let base = info
+      .and_then(|info| info.last_completed)
+      .unwrap_or_else(OffsetDateTime::now_utc);
+    let plus = DueIn::get(info.and_then(|info| info.due_in));
+    base + plus
   }
 
   pub fn guess_later<S: Store>(&self, store: &S, todo_id: &TodoId) -> TodoDate {
     let todo = store.get_todo(todo_id).expect("Todo not found");
-    let one_day = Duration::day();
     OffsetDateTime::now_utc().max(todo.due)
-      + self
-        .info
-        .get(&todo.task)
-        .map_or(one_day, |info| one_day.max(info.due_in.get() / 5))
+      + Duration::day().max(DueIn::get(self.info.get(&todo.task).and_then(|info| info.due_in)) / 5)
   }
 }
 
@@ -184,5 +180,41 @@ mod test {
       due_guesser.guess_due(&store, &task_id),
       now + Duration::days(3)
     );
+  }
+
+  #[test]
+  fn makes_a_good_later() {
+    let mut due_guesser = DueGuesser::new();
+    let mut store = MemStore::new();
+    let task_id = store.create_task("Task".into());
+    due_guesser.init_task(&store, &task_id, None);
+    let mut now = OffsetDateTime::now_utc();
+    let todo_id = store.create_todo(&task_id, now);
+    let later = due_guesser.guess_later(&store, &todo_id);
+    assert!(later >= now + Duration::days(6));
+    now = OffsetDateTime::now_utc();
+    assert!(later <= now + Duration::days(6));
+
+    now += Duration::days(10);
+    let completed = TodoCompleted::new(now);
+    due_guesser.handle_completion(&store, &todo_id, &completed);
+    store.set_todo_completed(&todo_id, Some(completed)).unwrap();
+
+    now += Duration::days(30);
+    let completed = TodoCompleted::new(now);
+    let todo_id = store.create_todo(&task_id, now);
+    due_guesser.handle_completion(&store, &todo_id, &TodoCompleted::new(now));
+    store.set_todo_completed(&todo_id, Some(completed)).unwrap();
+
+    now += Duration::days(50);
+    let completed = TodoCompleted::new(now);
+    let todo_id = store.create_todo(&task_id, now);
+    due_guesser.handle_completion(&store, &todo_id, &TodoCompleted::new(now));
+    store.set_todo_completed(&todo_id, Some(completed)).unwrap();
+
+    let later = due_guesser.guess_later(&store, &todo_id);
+    assert!(later >= now + Duration::days(8));
+    now = OffsetDateTime::now_utc() + Duration::days(90);
+    assert!(later <= now + Duration::days(8));
   }
 }
