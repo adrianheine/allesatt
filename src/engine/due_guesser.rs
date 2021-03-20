@@ -91,25 +91,20 @@ impl DueGuesser {
   }
 
   pub fn guess_due<S: Store>(&self, _store: &S, task_id: &TaskId) -> TodoDate {
-    if let Some(info) = self.info.get(task_id) {
-      info
-        .last_completed
-        .unwrap_or_else(|| OffsetDateTime::now_utc())
-        + info.due_in.get()
-    } else {
-      OffsetDateTime::now_utc() + DEFAULT_PERIOD
-    }
+    self.info.get(task_id).map_or_else(
+      || OffsetDateTime::now_utc() + DEFAULT_PERIOD,
+      |info| info.last_completed.unwrap_or_else(OffsetDateTime::now_utc) + info.due_in.get(),
+    )
   }
 
   pub fn guess_later<S: Store>(&self, store: &S, todo_id: &TodoId) -> TodoDate {
     let todo = store.get_todo(todo_id).expect("Todo not found");
     let one_day = Duration::day();
     OffsetDateTime::now_utc().max(todo.due)
-      + if let Some(info) = self.info.get(&todo.task) {
-        one_day.max(info.due_in.get() / 5)
-      } else {
-        one_day
-      }
+      + self
+        .info
+        .get(&todo.task)
+        .map_or(one_day, |info| one_day.max(info.due_in.get() / 5))
   }
 }
 

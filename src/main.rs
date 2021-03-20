@@ -19,7 +19,6 @@
 // Fix these for an actually usable crate
 #![allow(clippy::cargo_common_metadata, unreachable_pub, rustdoc, missing_docs)]
 
-use libc;
 use std::error::Error;
 
 mod cli;

@@ -56,11 +56,8 @@ enum Cmd {
 }
 
 impl Cmd {
-  pub fn readonly(&self) -> bool {
-    match self {
-      Self::List { .. } | Self::Done { .. } => true,
-      _ => false,
-    }
+  pub const fn readonly(&self) -> bool {
+    matches!(self, Self::List { .. } | Self::Done { .. })
   }
 }
 
@@ -68,7 +65,7 @@ pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
   let opts = Opts::from_args();
   match opts.file.as_ref() {
     "-" => handle_command(
-      &opts.cmd,
+      opts.cmd,
       new_engine(
         store,
         ReadWriteLogger::<_, Stdout, _>::new(stdin(), &mut stdout()),
@@ -77,24 +74,23 @@ pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
     file_name => {
       let file = OpenOptions::new().read(true).append(true).open(file_name)?;
       handle_command(
-        &opts.cmd,
+        opts.cmd,
         new_engine(store, ReadWriteLogger::new(&file, &file)),
       )
     }
   }
 }
 fn handle_command<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>>(
-  command: &Option<Cmd>,
+  command: Option<Cmd>,
   app: B,
 ) -> Result<(), Box<dyn Error>> {
-  let default = Cmd::List {
+  let cmd = command.unwrap_or_else(|| Cmd::List {
     all: atty::isnt(atty::Stream::Stdout),
-  };
-  let cmd = command.as_ref().unwrap_or(&default);
+  });
   if cmd.readonly() {
-    handle_command_impl(cmd, app, &mut stdout())
+    handle_command_impl(&cmd, app, &mut stdout())
   } else {
-    handle_command_impl(cmd, app, &mut stderr())
+    handle_command_impl(&cmd, app, &mut stderr())
   }
 }
 
