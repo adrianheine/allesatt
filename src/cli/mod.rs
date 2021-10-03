@@ -4,12 +4,16 @@ use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::{stderr, stdin, stdout, Stdout, Write};
 use structopt::StructOpt;
+use time::format_description::FormatItem;
+use time::macros::format_description;
 use time::Duration;
 use time::OffsetDateTime;
 
 use crate::engine::{
   new as new_engine, Allesatt, ReadWriteLogger, Store, TaskId, Todo, TodoCompleted, TodoId,
 };
+
+const DAY_FORMAT: &[FormatItem<'static>] = format_description!("[year]-[month]-[day]");
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Allesatt", author, about)]
@@ -130,7 +134,7 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
         paused_tasks.push(task);
       }
     }
-    let tomorrow = OffsetDateTime::now_utc() + Duration::day();
+    let tomorrow = OffsetDateTime::now_utc() + Duration::DAY;
     for (count, (todo, title)) in todos.iter().enumerate() {
       if !all && count >= 3 && (todo.due > tomorrow || count >= 5) {
         if todo.due <= tomorrow {
@@ -142,7 +146,7 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
         output,
         "{:width$} {} {}",
         todo.task,
-        todo.due.format("%Y-%m-%d"),
+        todo.due.format(&DAY_FORMAT)?,
         title,
         width = max_id_len
       )?;
@@ -190,7 +194,7 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
         output,
         "{:width$} {} {}",
         task_id,
-        completed.format("%Y-%m-%d"),
+        completed.format(&DAY_FORMAT)?,
         title,
         width = max_id_len
       )?;
@@ -233,7 +237,7 @@ fn print_todo<S: Store, W: Write>(
     output,
     "{} {} {}",
     task_id,
-    todo.due.format("%Y-%m-%d"),
+    todo.due.format(&DAY_FORMAT)?,
     task.title,
   )?;
   Ok(())
@@ -298,7 +302,7 @@ fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: 
 
 #[cfg(test)]
 mod tests {
-  use super::{handle_command_impl, Cmd};
+  use super::{handle_command_impl, Cmd, DAY_FORMAT};
   use crate::engine::{new as new_engine, MemStore, ReadWriteLogger, TaskId};
   use regex::{escape, Regex};
   use std::borrow::Borrow;
@@ -307,7 +311,9 @@ mod tests {
   use time::{Duration, OffsetDateTime};
 
   fn today_plus(days: i64) -> impl Display {
-    (OffsetDateTime::now_utc() + Duration::days(days)).format("%Y-%m-%d")
+    (OffsetDateTime::now_utc() + Duration::days(days))
+      .format(&DAY_FORMAT)
+      .unwrap()
   }
 
   fn exec_command(cmd: Cmd, log_in: impl Borrow<str>) -> (String, String) {

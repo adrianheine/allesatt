@@ -100,7 +100,7 @@ impl DueGuesser {
   pub fn guess_later<S: Store>(&self, store: &S, todo_id: &TodoId) -> TodoDate {
     let todo = store.get_todo(todo_id).expect("Todo not found");
     OffsetDateTime::now_utc().max(todo.due)
-      + Duration::day().max(DueIn::get(self.info.get(&todo.task).and_then(|info| info.due_in)) / 5)
+      + Duration::DAY.max(DueIn::get(self.info.get(&todo.task).and_then(|info| info.due_in)) / 5)
   }
 }
 

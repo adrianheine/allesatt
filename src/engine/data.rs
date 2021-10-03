@@ -4,7 +4,16 @@ use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Error as FmtError, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
+use time::format_description::FormatItem;
+use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
+
+const FULL_FORMAT: &[FormatItem<'static>] =
+  format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
+const OLD_FORMAT1: &[FormatItem<'static>] =
+  format_description!("[year]-[month]-[day]T[hour padding:none]:[minute]:[second].[subsecond]");
+const OLD_FORMAT2: &[FormatItem<'static>] =
+  format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
 
 // FIXME TaskId should probably be store-dependent and just move there
 #[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone)]
@@ -49,7 +58,7 @@ impl serde::Serialize for TodoCompleted {
   where
     S: Serializer,
   {
-    serializer.serialize_str(&self.date.format("%FT%T.%N"))
+    serializer.serialize_str(&self.date.format(&FULL_FORMAT).expect("Date formatting"))
   }
 }
 
@@ -59,7 +68,9 @@ impl<'de> serde::Deserialize<'de> for TodoCompleted {
     D: Deserializer<'de>,
   {
     let s = String::deserialize(deserializer)?;
-    match PrimitiveDateTime::parse(&s, "%FT%T.%N").or_else(|_| PrimitiveDateTime::parse(s, "%FT%T"))
+    match PrimitiveDateTime::parse(&s, &FULL_FORMAT)
+      .or_else(|_| PrimitiveDateTime::parse(&s, &OLD_FORMAT1))
+      .or_else(|_| PrimitiveDateTime::parse(&s, &OLD_FORMAT2))
     {
       Ok(v) => Ok(Self::new(v.assume_utc())),
       Err(e) => Err(D::Error::custom(e.to_string())),
@@ -73,4 +84,17 @@ pub struct Todo {
   pub task: TaskId,
   pub completed: Option<TodoCompleted>,
   pub due: TodoDate,
+}
+
+#[cfg(test)]
+mod test {
+  use super::TodoCompleted;
+  use serde_json::from_str as from_json;
+
+  #[test]
+  fn deserialize_completed() {
+    let completed: TodoCompleted = from_json("\"2017-04-15T12:00:00\"").unwrap();
+    let completed: TodoCompleted = from_json("\"2019-05-04T09:41:17.942422315\"").unwrap();
+    let completed: TodoCompleted = from_json("\"2021-03-30T8:04:24.237224778\"").unwrap();
+  }
 }
