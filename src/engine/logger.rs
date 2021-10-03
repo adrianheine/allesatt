@@ -48,47 +48,52 @@ impl<R: Read, IW: Write, W: BorrowMut<IW>> ReadWriteLogger<R, IW, W> {
   }
 }
 
+fn parse_line(line: &str, app: &mut impl Allesatt) -> Result<(), Box<dyn Error>> {
+  match line.split_at(line.find(':').ok_or_else(|| String::from("Invalid line"))? + 1) {
+    ("create_task1:", v) => {
+      let (title, due_every, task_id, todo_id) = from_json(v)?;
+      if (task_id, todo_id) != app.create_task(title, due_every) {
+        return Err("Mismatch in task or todo ids".into());
+      }
+    }
+    ("clone_task1:", v) => {
+      let (task_id, title, new_task_id, todo_id) = from_json(v)?;
+      let expected_result = (new_task_id, todo_id);
+      let result = app.clone_task(&task_id, title)?;
+      if expected_result != result {
+        return Err(
+          format!(
+            "Mismatch in task or todo ids: expected {:?}, found {:?}",
+            expected_result, result
+          )
+          .into(),
+        );
+      }
+    }
+    ("complete_todo1:", v) => {
+      let (todo_id, completed) = from_json(v)?;
+      app.complete_todo(&todo_id, completed)?;
+    }
+    ("todo_later1:", v) => {
+      let (todo_id,): (TodoId,) = from_json(v)?;
+      app.todo_later(&todo_id)?;
+    }
+    ("pause_task1:", v) => {
+      let (task_id,): (TaskId,) = from_json(v)?;
+      app.pause_task(&task_id)?;
+    }
+    (something, something_else) => {
+      return Err(format!("Unexpected {}:{}", something, something_else).into());
+    }
+  }
+  Ok(())
+}
+
 impl<R: Read, IW: Write, W: BorrowMut<IW>> Logger for ReadWriteLogger<R, IW, W> {
   fn play_back<A: Allesatt>(&mut self, app: &mut A) -> Result<(), Box<dyn Error>> {
-    while let Some(line_result) = self.source.next() {
+    for line_result in &mut self.source {
       let line = line_result?;
-      match line.split_at(line.find(':').ok_or_else(|| String::from("Invalid line"))? + 1) {
-        ("create_task1:", v) => {
-          let (title, due_every, task_id, todo_id) = from_json(v)?;
-          if (task_id, todo_id) != app.create_task(title, due_every) {
-            return Err("Mismatch in task or todo ids".into());
-          }
-        }
-        ("clone_task1:", v) => {
-          let (task_id, title, new_task_id, todo_id) = from_json(v)?;
-          let expected_result = (new_task_id, todo_id);
-          let result = app.clone_task(&task_id, title)?;
-          if expected_result != result {
-            return Err(
-              format!(
-                "Mismatch in task or todo ids: expected {:?}, found {:?}",
-                expected_result, result
-              )
-              .into(),
-            );
-          }
-        }
-        ("complete_todo1:", v) => {
-          let (todo_id, completed) = from_json(v)?;
-          app.complete_todo(&todo_id, completed)?;
-        }
-        ("todo_later1:", v) => {
-          let (todo_id,): (TodoId,) = from_json(v)?;
-          app.todo_later(&todo_id)?;
-        }
-        ("pause_task1:", v) => {
-          let (task_id,): (TaskId,) = from_json(v)?;
-          app.pause_task(&task_id)?;
-        }
-        (something, something_else) => {
-          return Err(format!("Unexpected {}:{}", something, something_else).into());
-        }
-      }
+      parse_line(&line, app).map_err(|e| e.to_string() + "\nLine content: " + &line)?;
     }
     Ok(())
   }

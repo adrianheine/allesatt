@@ -118,15 +118,13 @@ struct AllesattImpl<S: Store, L: Logger> {
 }
 
 impl<S: Store, L: Logger> AllesattImpl<S, L> {
-  fn new(store: S, mut logger: L) -> Self {
+  fn try_new(store: S, mut logger: L) -> Result<Self, Box<dyn Error>> {
     let mut inner = AllesattInner {
       store,
       due_guesser: DueGuesser::new(),
     };
-    logger
-      .play_back(&mut inner)
-      .expect("error playing back log");
-    Self { inner, logger }
+    logger.play_back(&mut inner)?;
+    Ok(Self { inner, logger })
   }
 }
 
@@ -182,6 +180,6 @@ impl<S: Store, L: Logger> Allesatt for AllesattImpl<S, L> {
   }
 }
 
-pub fn new(store: impl Store, logger: impl Logger) -> impl Allesatt {
-  AllesattImpl::new(store, logger)
+pub fn try_new(store: impl Store, logger: impl Logger) -> Result<impl Allesatt, Box<dyn Error>> {
+  AllesattImpl::try_new(store, logger)
 }

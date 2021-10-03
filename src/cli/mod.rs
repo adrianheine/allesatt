@@ -10,7 +10,7 @@ use time::Duration;
 use time::OffsetDateTime;
 
 use crate::engine::{
-  new as new_engine, Allesatt, ReadWriteLogger, Store, TaskId, Todo, TodoCompleted, TodoId,
+  try_new as try_new_engine, Allesatt, ReadWriteLogger, Store, TaskId, Todo, TodoCompleted, TodoId,
 };
 
 const DAY_FORMAT: &[FormatItem<'static>] = format_description!("[year]-[month]-[day]");
@@ -70,17 +70,18 @@ pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
   match opts.file.as_ref() {
     "-" => handle_command(
       opts.cmd,
-      new_engine(
+      try_new_engine(
         store,
         ReadWriteLogger::<_, Stdout, _>::new(stdin(), &mut stdout()),
-      ),
+      )?,
     ),
     file_name => {
       let file = OpenOptions::new().read(true).append(true).open(file_name)?;
-      handle_command(
+      let x = handle_command(
         opts.cmd,
-        new_engine(store, ReadWriteLogger::new(&file, &file)),
-      )
+        try_new_engine(store, ReadWriteLogger::new(&file, &file))?,
+      );
+      x
     }
   }
 }
@@ -303,7 +304,7 @@ fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: 
 #[cfg(test)]
 mod tests {
   use super::{handle_command_impl, Cmd, DAY_FORMAT};
-  use crate::engine::{new as new_engine, MemStore, ReadWriteLogger, TaskId};
+  use crate::engine::{try_new as try_new_engine, MemStore, ReadWriteLogger, TaskId};
   use regex::{escape, Regex};
   use std::borrow::Borrow;
   use std::fmt::Display;
@@ -322,10 +323,11 @@ mod tests {
     let mut log_out: Vec<u8> = Vec::new();
     handle_command_impl(
       &cmd,
-      new_engine(
+      try_new_engine(
         MemStore::new(),
         ReadWriteLogger::<_, Vec<u8>, _>::new(log_in.as_bytes(), &mut log_out),
-      ),
+      )
+      .unwrap(),
       &mut output,
     )
     .unwrap();

@@ -93,8 +93,8 @@ mod test {
 
   #[test]
   fn deserialize_completed() {
-    let completed: TodoCompleted = from_json("\"2017-04-15T12:00:00\"").unwrap();
-    let completed: TodoCompleted = from_json("\"2019-05-04T09:41:17.942422315\"").unwrap();
-    let completed: TodoCompleted = from_json("\"2021-03-30T8:04:24.237224778\"").unwrap();
+    let _: TodoCompleted = from_json("\"2017-04-15T12:00:00\"").unwrap();
+    let _: TodoCompleted = from_json("\"2019-05-04T09:41:17.942422315\"").unwrap();
+    let _: TodoCompleted = from_json("\"2021-03-30T8:04:24.237224778\"").unwrap();
   }
 }
