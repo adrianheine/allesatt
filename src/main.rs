@@ -17,7 +17,12 @@
 )]
 #![warn(clippy::module_name_repetitions, unused)]
 // Fix these for an actually usable crate
-#![allow(clippy::cargo_common_metadata, unreachable_pub, rustdoc, missing_docs)]
+#![allow(
+  clippy::cargo_common_metadata,
+  unreachable_pub,
+  rustdoc::all,
+  missing_docs
+)]
 
 use std::error::Error;
 
