@@ -57,6 +57,9 @@ enum Cmd {
 
   /// Mark a task as not needing doing currently
   Pause { id: TaskId },
+
+  /// Mark a task as needing doing again
+  Unpause { id: TaskId },
 }
 
 impl Cmd {
@@ -112,6 +115,7 @@ fn handle_command_impl<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borro
     Cmd::Later { id } => task_later(app, output, id),
     Cmd::List { all } => list_todos(app, output, *all),
     Cmd::Pause { id } => pause_task(app, output, id),
+    Cmd::Unpause { id } => unpause_task(app, output, id),
   }
 }
 
@@ -284,6 +288,16 @@ fn pause_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: 
   print_paused_task(store, output, id)
 }
 
+fn unpause_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
+  mut app: B,
+  output: &mut W,
+  id: &TaskId,
+) -> Result<(), Box<dyn Error>> {
+  let todo_id = app.borrow_mut().unpause_task(id)?;
+  let store = app.borrow().get_store();
+  print_todo(store, output, id, &todo_id)
+}
+
 fn task_later<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
   mut app: B,
   output: &mut W,
@@ -397,6 +411,20 @@ complete_todo1: [1, ""#,
 
     let (new_log_out, output) = exec_command(Cmd::List { all: false }, log_out.as_ref());
     assert_eq!(output, "Paused tasks:\n1 task\n");
+    assert_eq!(new_log_out, log_out);
+
+    let (log_out, output) = exec_command(
+      Cmd::Unpause {
+        id: TaskId::from_str("1").unwrap(),
+      },
+      log_out,
+    );
+    assert_eq!(output, format!("1 {} task\n", today_plus(0)));
+    let r = Regex::new(&(r.to_string() + "unpause_task1: \\[1\\]\n")).unwrap();
+    assert!(r.is_match(&log_out));
+
+    let (new_log_out, output) = exec_command(Cmd::List { all: false }, log_out.as_ref());
+    assert_eq!(output, format!("1 {} task\n", today_plus(0)));
     assert_eq!(new_log_out, log_out);
   }
 }

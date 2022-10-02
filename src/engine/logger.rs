@@ -30,6 +30,7 @@ pub trait Logger {
   ) -> Result<(), Box<dyn Error>>;
   fn log_todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>>;
   fn log_pause_task(&mut self, task_id: &TaskId) -> Result<(), Box<dyn Error>>;
+  fn log_unpause_task(&mut self, task_id: &TaskId) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct ReadWriteLogger<R: Read, IW: Write, W: BorrowMut<IW>> {
@@ -81,6 +82,10 @@ fn parse_line(line: &str, app: &mut impl Allesatt) -> Result<(), Box<dyn Error>>
     ("pause_task1:", v) => {
       let (task_id,): (TaskId,) = from_json(v)?;
       app.pause_task(&task_id)?;
+    }
+    ("unpause_task1:", v) => {
+      let (task_id,): (TaskId,) = from_json(v)?;
+      app.unpause_task(&task_id)?;
     }
     (something, something_else) => {
       return Err(format!("Unexpected {}:{}", something, something_else).into());
@@ -161,6 +166,15 @@ impl<R: Read, IW: Write, W: BorrowMut<IW>> Logger for ReadWriteLogger<R, IW, W> 
     writeln!(
       self.target.borrow_mut(),
       "pause_task1: [{}]",
+      to_json(task_id)?
+    )?;
+    Ok(())
+  }
+
+  fn log_unpause_task(&mut self, task_id: &TaskId) -> Result<(), Box<dyn Error>> {
+    writeln!(
+      self.target.borrow_mut(),
+      "unpause_task1: [{}]",
       to_json(task_id)?
     )?;
     Ok(())

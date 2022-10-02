@@ -20,6 +20,7 @@ pub trait Allesatt {
   ) -> Result<(), Box<dyn Error>>;
   fn todo_later(&mut self, todo_id: &TodoId) -> Result<(), Box<dyn Error>>;
   fn pause_task(&mut self, task_id: &TaskId) -> Result<(), Box<dyn Error>>;
+  fn unpause_task(&mut self, task_id: &TaskId) -> Result<TodoId, Box<dyn Error>>;
   fn get_store(&self) -> &Self::Store;
 }
 
@@ -105,6 +106,11 @@ impl<S: Store> Allesatt for AllesattInner<S> {
     Ok(())
   }
 
+  fn unpause_task(&mut self, task_id: &TaskId) -> Result<TodoId, Box<dyn Error>> {
+    let todo_id = self.store.create_todo(task_id, OffsetDateTime::now_utc());
+    Ok(todo_id)
+  }
+
   // This is non-mutable
   fn get_store(&self) -> &Self::Store {
     &self.store
@@ -172,6 +178,12 @@ impl<S: Store, L: Logger> Allesatt for AllesattImpl<S, L> {
     self.inner.pause_task(task_id)?;
     self.logger.log_pause_task(task_id)?;
     Ok(())
+  }
+
+  fn unpause_task(&mut self, task_id: &TaskId) -> Result<TodoId, Box<dyn Error>> {
+    let result = self.inner.unpause_task(task_id)?;
+    self.logger.log_unpause_task(task_id)?;
+    Ok(result)
   }
 
   // This is non-mutable
