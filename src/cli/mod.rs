@@ -162,6 +162,7 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
         writeln!(output)?;
       }
       writeln!(output, "Paused tasks:")?;
+      paused_tasks.sort_unstable_by_key(|t| t.id.clone());
       for task in paused_tasks {
         print_paused_task(store, output, &task.id)?;
       }

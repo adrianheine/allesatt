@@ -16,7 +16,7 @@ const OLD_FORMAT2: &[FormatItem<'static>] =
   format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
 
 // FIXME TaskId should probably be store-dependent and just move there
-#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone, Ord, PartialOrd)]
 pub struct TaskId(pub(super) u64);
 
 #[derive(Debug, Serialize, Deserialize)]
