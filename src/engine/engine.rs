@@ -25,9 +25,18 @@ pub trait Allesatt {
 }
 
 #[derive(Debug)]
-struct AllesattInner<S: Store> {
+struct AllesattInner<S> {
   store: S,
   due_guesser: DueGuesser,
+}
+
+impl<S> AllesattInner<S> {
+  pub fn new(store: S) -> Self {
+    Self {
+      store,
+      due_guesser: DueGuesser::new(),
+    }
+  }
 }
 
 impl<S: Store> Allesatt for AllesattInner<S> {
@@ -103,6 +112,7 @@ impl<S: Store> Allesatt for AllesattInner<S> {
       .id
       .clone();
     self.store.delete_todo(&todo_id)?;
+    self.due_guesser.handle_pause(task_id);
     Ok(())
   }
 
@@ -125,10 +135,7 @@ struct AllesattImpl<S: Store, L: Logger> {
 
 impl<S: Store, L: Logger> AllesattImpl<S, L> {
   fn try_new(store: S, mut logger: L) -> Result<Self, Box<dyn Error>> {
-    let mut inner = AllesattInner {
-      store,
-      due_guesser: DueGuesser::new(),
-    };
+    let mut inner = AllesattInner::new(store);
     logger.play_back(&mut inner)?;
     Ok(Self { inner, logger })
   }
@@ -194,4 +201,36 @@ impl<S: Store, L: Logger> Allesatt for AllesattImpl<S, L> {
 
 pub fn try_new(store: impl Store, logger: impl Logger) -> Result<impl Allesatt, Box<dyn Error>> {
   AllesattImpl::try_new(store, logger)
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{
+    super::{MemStore, Store, TodoCompleted},
+    Allesatt, AllesattInner,
+  };
+  use std::time::Duration;
+  use time::OffsetDateTime;
+
+  #[test]
+  fn default_duration_after_pausing() {
+    let now = OffsetDateTime::now_utc();
+    let day = Duration::from_secs(60 * 60 * 24);
+    let mut engine = AllesattInner::new(MemStore::new());
+    let (task_id, todo_id) = engine.create_task("x".into(), Some(day * 7));
+    engine
+      .complete_todo(&todo_id, TodoCompleted::new(now - day * 28))
+      .unwrap();
+    engine.pause_task(&task_id).unwrap();
+    let todo_id = engine.unpause_task(&task_id).unwrap();
+    let due = engine.get_store().get_todo(&todo_id).unwrap().due;
+    assert!(due > now - day);
+    assert!(due < now + day);
+    engine
+      .complete_todo(&todo_id, TodoCompleted::new(now - day * 7))
+      .unwrap();
+    let due = engine.get_store().find_open_todo(&task_id).unwrap().due;
+    assert!(due > now - day);
+    assert!(due < now + day);
+  }
 }

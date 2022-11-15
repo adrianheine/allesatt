@@ -88,6 +88,12 @@ impl DueGuesser {
     }
   }
 
+  pub fn handle_pause(&mut self, task_id: &TaskId) {
+    if let Some(info) = self.info.get_mut(task_id) {
+      info.last_completed = None;
+    }
+  }
+
   pub fn guess_due<S: Store>(&self, _store: &S, task_id: &TaskId) -> TodoDate {
     let info = self.info.get(task_id);
     let base = info
