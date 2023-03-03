@@ -1,17 +1,16 @@
+use crate::engine::{
+  get_todos, try_new as try_new_engine, Allesatt, ReadWriteLogger, Store, Task, TaskId,
+  TodoCompleted, TodoDate, TodoId,
+};
 use humantime::Duration as HumanDuration;
 use std::borrow::{Borrow, BorrowMut};
 use std::error::Error;
 use std::fs::OpenOptions;
-use std::io::{stderr, stdin, stdout, Stdout, Write};
+use std::io::{self, stderr, stdin, stdout, Stdout, Write};
 use structopt::StructOpt;
 use time::format_description::FormatItem;
 use time::macros::format_description;
-use time::Duration;
 use time::OffsetDateTime;
-
-use crate::engine::{
-  try_new as try_new_engine, Allesatt, ReadWriteLogger, Store, TaskId, Todo, TodoCompleted, TodoId,
-};
 
 const DAY_FORMAT: &[FormatItem<'static>] = format_description!("[year]-[month]-[day]");
 
@@ -124,48 +123,24 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
   output: &mut W,
   all: bool,
 ) -> Result<(), Box<dyn Error>> {
-  let store = app.borrow().get_store();
-  let tasks = store.get_tasks();
-  if let Some(max_id_len) = tasks.iter().map(|task| task.id.to_string().len()).max() {
-    let mut todos: Vec<(&Todo, String)> = Vec::with_capacity(tasks.len());
-    let mut paused_tasks = Vec::new();
-    for task in tasks {
-      if let Some(todo) = store.find_open_todo(&task.id) {
-        let pos = todos
-          .binary_search_by_key(&todo.due, |&(t, _)| t.due)
-          .unwrap_or_else(|e| e);
-        todos.insert(pos, (todo, task.title.clone()));
-      } else {
-        paused_tasks.push(task);
-      }
-    }
-    let tomorrow = OffsetDateTime::now_utc() + Duration::DAY;
-    for (count, (todo, title)) in todos.iter().enumerate() {
-      if !all && count >= 3 && (todo.due > tomorrow || count >= 5) {
-        if todo.due <= tomorrow {
-          writeln!(output, "(and more)")?;
-        }
-        break;
-      }
-      writeln!(
-        output,
-        "{:width$} {} {}",
-        todo.task,
-        todo.due.format(&DAY_FORMAT)?,
-        title,
-        width = max_id_len
-      )?;
-    }
+  let (todos, paused_tasks, and_more) = get_todos(app.borrow().get_store(), all);
+  let Some(max_id_len) = todos.iter().map(|(todo, _)| todo.task.to_string().len()).chain(
+    paused_tasks.iter().map(|task| task.id.to_string().len())
+  ).max() else { return Ok(()) };
+  for (todo, task) in &todos {
+    write_todo(output, max_id_len, task, &todo.due)?;
+  }
+  if and_more {
+    writeln!(output, "(and more)")?;
+  }
 
-    if !paused_tasks.is_empty() {
-      if !todos.is_empty() {
-        writeln!(output)?;
-      }
-      writeln!(output, "Paused tasks:")?;
-      paused_tasks.sort_unstable_by_key(|t| t.id.clone());
-      for task in paused_tasks {
-        print_paused_task(store, output, &task.id)?;
-      }
+  if !paused_tasks.is_empty() {
+    if !todos.is_empty() {
+      writeln!(output)?;
+    }
+    writeln!(output, "Paused tasks:")?;
+    for task in paused_tasks {
+      write_paused_task(output, max_id_len, task)?;
     }
   }
   Ok(())
@@ -182,28 +157,17 @@ fn list_done_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
     .into_iter()
     .map(|todo| {
       let task = store.get_task(&todo.task).unwrap();
-      (
-        todo.task.clone(),
-        todo.completed.as_ref().unwrap().date,
-        task.title.clone(),
-      )
+      (task, todo.completed.as_ref().unwrap().date)
     })
     .collect();
   if let Some(max_id_len) = todos
     .iter()
-    .map(|(task_id, _, _)| task_id.to_string().len())
+    .map(|(task, _)| task.id.to_string().len())
     .max()
   {
-    todos.sort_unstable_by(|(_, completed1, _), (_, completed2, _)| completed1.cmp(completed2));
-    for (task_id, completed, title) in todos {
-      writeln!(
-        output,
-        "{:width$} {} {}",
-        task_id,
-        completed.format(&DAY_FORMAT)?,
-        title,
-        width = max_id_len
-      )?;
+    todos.sort_unstable_by(|(_, completed1), (_, completed2)| completed1.cmp(completed2));
+    for (task, completed) in todos {
+      write_todo(output, max_id_len, task, &completed)?;
     }
   }
   Ok(())
@@ -239,24 +203,26 @@ fn print_todo<S: Store, W: Write>(
 ) -> Result<(), Box<dyn Error>> {
   let task = store.get_task(task_id).unwrap();
   let todo = store.get_todo(todo_id).unwrap();
-  writeln!(
-    output,
-    "{} {} {}",
-    task_id,
-    todo.due.format(&DAY_FORMAT)?,
-    task.title,
-  )?;
+  write_todo(output, 0, task, &todo.due)
+}
+
+fn write_todo(
+  output: &mut impl Write,
+  width: usize,
+  Task { id, title }: &Task,
+  date: &TodoDate,
+) -> Result<(), Box<dyn Error>> {
+  let date = date.format(&DAY_FORMAT)?;
+  writeln!(output, "{id:width$} {date} {title}")?;
   Ok(())
 }
 
-fn print_paused_task<S: Store, W: Write>(
-  store: &S,
-  output: &mut W,
-  task_id: &TaskId,
-) -> Result<(), Box<dyn Error>> {
-  let task = store.get_task(task_id).unwrap();
-  writeln!(output, "{} {}", task_id, task.title,)?;
-  Ok(())
+fn write_paused_task(
+  output: &mut impl Write,
+  width: usize,
+  Task { id, title }: &Task,
+) -> io::Result<()> {
+  writeln!(output, "{id:width$} {title}")
 }
 
 fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
@@ -286,7 +252,8 @@ fn pause_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: 
 ) -> Result<(), Box<dyn Error>> {
   app.borrow_mut().pause_task(id)?;
   let store = app.borrow().get_store();
-  print_paused_task(store, output, id)
+  write_paused_task(output, 0, store.get_task(id).unwrap())?;
+  Ok(())
 }
 
 fn unpause_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Write>(
@@ -332,12 +299,12 @@ mod tests {
       .unwrap()
   }
 
-  fn exec_command(cmd: Cmd, log_in: impl Borrow<str>) -> (String, String) {
+  fn exec_command(cmd: impl Borrow<Cmd>, log_in: impl Borrow<str>) -> (String, String) {
     let log_in = log_in.borrow();
     let mut output = Vec::new();
     let mut log_out: Vec<u8> = Vec::new();
     handle_command_impl(
-      &cmd,
+      cmd.borrow(),
       try_new_engine(
         MemStore::new(),
         ReadWriteLogger::<_, Vec<u8>, _>::new(log_in.as_bytes(), &mut log_out),
@@ -427,5 +394,134 @@ complete_todo1: [1, ""#,
     let (new_log_out, output) = exec_command(Cmd::List { all: false }, log_out.as_ref());
     assert_eq!(output, format!("1 {} task\n", today_plus(0)));
     assert_eq!(new_log_out, log_out);
+  }
+
+  #[test]
+  fn list_todos() {
+    let log_out = [
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 1".into(),
+      },
+      &Cmd::Do {
+        id: TaskId::from_str("1").unwrap(),
+      },
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 2".into(),
+      },
+      &Cmd::Do {
+        id: TaskId::from_str("2").unwrap(),
+      },
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 3".into(),
+      },
+      &Cmd::Do {
+        id: TaskId::from_str("3").unwrap(),
+      },
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 4 due".into(),
+      },
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 5 due".into(),
+      },
+    ]
+    .iter()
+    .fold(String::new(), |log_out, &cmd| exec_command(cmd, log_out).0);
+
+    let (_, output) = exec_command(Cmd::List { all: false }, &*log_out);
+    let r = Regex::new(&format!(
+      "^4 {0} Task 4 due\n5 {0} Task 5 due\n1 {1} Task 1\n$",
+      today_plus(0),
+      today_plus(30)
+    ))
+    .unwrap();
+    assert!(r.is_match(&output));
+
+    let (_, output) = exec_command(Cmd::List { all: true }, &*log_out);
+    let r = Regex::new(&format!(
+      "^4 {0} Task 4 due\n5 {0} Task 5 due\n1 {1} Task 1\n2 {1} Task 2\n3 {1} Task 3\n$",
+      today_plus(0),
+      today_plus(30)
+    ))
+    .unwrap();
+    assert!(r.is_match(&output));
+
+    let log_out = [
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 6 paused".into(),
+      },
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 7 paused".into(),
+      },
+      &Cmd::Pause {
+        id: TaskId::from_str("7").unwrap(),
+      },
+      &Cmd::Pause {
+        id: TaskId::from_str("6").unwrap(),
+      },
+    ]
+    .iter()
+    .fold(log_out, |log_out, &cmd| exec_command(cmd, log_out).0);
+
+    let (_, output) = exec_command(Cmd::List { all: false }, &*log_out);
+    let r = Regex::new(&format!(
+      "^4 {0} Task 4 due\n5 {0} Task 5 due\n1 {1} Task 1\n\nPaused tasks:\n6 Task 6 paused\n7 Task 7 paused\n$",
+      today_plus(0),
+      today_plus(30)
+    ))
+    .unwrap();
+    assert!(r.is_match(&output));
+
+    let (_, output) = exec_command(Cmd::List { all: true }, &*log_out);
+    let r = Regex::new(&format!(
+      "^4 {0} Task 4 due\n5 {0} Task 5 due\n1 {1} Task 1\n2 {1} Task 2\n3 {1} Task 3\n\nPaused tasks:\n6 Task 6 paused\n7 Task 7 paused\n$",
+      today_plus(0),
+      today_plus(30)
+    ))
+    .unwrap();
+    assert!(r.is_match(&output));
+
+    let log_out = [
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 8 due".into(),
+      },
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 9 due".into(),
+      },
+      &Cmd::Add {
+        every: "30days".parse().unwrap(),
+        description: "Task 10".into(),
+      },
+      &Cmd::Do {
+        id: TaskId::from_str("10").unwrap(),
+      },
+    ]
+    .iter()
+    .fold(log_out, |log_out, &cmd| exec_command(cmd, log_out).0);
+
+    let (_, output) = exec_command(Cmd::List { all: false }, &*log_out);
+    let r = Regex::new(&format!(
+      "^4 {0} Task 4 due\n5 {0} Task 5 due\n8 {0} Task 8 due\n9 {0} Task 9 due\n\nPaused tasks:\n6 Task 6 paused\n7 Task 7 paused\n$",
+      today_plus(0),
+    ))
+    .unwrap();
+    assert!(r.is_match(&output));
+
+    let (_, output) = exec_command(Cmd::List { all: true }, &*log_out);
+    let r = Regex::new(&format!(
+      "^ 4 {0} Task 4 due\n 5 {0} Task 5 due\n 8 {0} Task 8 due\n 9 {0} Task 9 due\n 1 {1} Task 1\n 2 {1} Task 2\n 3 {1} Task 3\n10 {1} Task 10\n\nPaused tasks:\n 6 Task 6 paused\n 7 Task 7 paused\n$",
+      today_plus(0),
+      today_plus(30),
+    ))
+    .unwrap();
+    assert!(r.is_match(&output));
   }
 }
