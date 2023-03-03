@@ -63,11 +63,8 @@ fn parse_line(line: &str, app: &mut impl Allesatt) -> Result<(), Box<dyn Error>>
       let result = app.clone_task(&task_id, title)?;
       if expected_result != result {
         return Err(
-          format!(
-            "Mismatch in task or todo ids: expected {:?}, found {:?}",
-            expected_result, result
-          )
-          .into(),
+          format!("Mismatch in task or todo ids: expected {expected_result:?}, found {result:?}")
+            .into(),
         );
       }
     }
@@ -88,7 +85,7 @@ fn parse_line(line: &str, app: &mut impl Allesatt) -> Result<(), Box<dyn Error>>
       app.unpause_task(&task_id)?;
     }
     (something, something_else) => {
-      return Err(format!("Unexpected {}:{}", something, something_else).into());
+      return Err(format!("Unexpected {something}:{something_else}").into());
     }
   }
   Ok(())
