@@ -313,9 +313,9 @@ mod tests {
       &mut output,
     )
     .unwrap();
-    let log_out = String::from_utf8(log_out).unwrap();
+    let log_out = std::str::from_utf8(&log_out).unwrap();
     (
-      String::with_capacity(log_in.len() + log_out.len()) + log_in + &log_out,
+      String::with_capacity(log_in.len() + log_out.len()) + log_in + log_out,
       String::from_utf8(output).unwrap(),
     )
   }

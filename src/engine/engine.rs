@@ -59,12 +59,11 @@ impl<S: Store> Allesatt for AllesattInner<S> {
     self
       .due_guesser
       .copy_task(&self.store, &new_task_id, task_id);
-    let todos: Vec<_> = self
+    let todos = self
       .store
       .get_todos(Some(task_id), Some(true))
       .iter()
-      .map(|t| (t.due, t.completed.clone()))
-      .collect();
+      .map(|t| (t.due, t.completed.clone()));
     for (due, completed) in todos {
       let todo_id = self.store.create_todo(&new_task_id, due);
       self.store.set_todo_completed(&todo_id, completed)?;
