@@ -63,7 +63,7 @@ impl<S: Store> Allesatt for AllesattInner<S> {
       .store
       .get_todos(Some(task_id), Some(true))
       .into_iter()
-      .map(|t| (t.due, t.completed)).collect();
+      .map(|t| (t.due, t.completed.clone())).collect();
     for (due, completed) in todos.into_vec().into_iter() { // Waiting for #116607
       let todo_id = self.store.create_todo(&new_task_id, due);
       self.store.set_todo_completed(&todo_id, completed)?;
