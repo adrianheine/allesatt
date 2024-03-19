@@ -11,10 +11,12 @@ pub use logger::{Logger, ReadWriteLogger};
 pub use mem_store::MemStore;
 pub use store::Store;
 
+use rand::{seq::index::sample, thread_rng};
 use time::{Duration, OffsetDateTime};
 
 const MAX_DUE: usize = 5;
 const MAX_NOT_DUE: usize = 3;
+const RANDOM_SAMPLE: bool = true;
 
 pub fn get_todos(
   store: &'_ impl Store,
@@ -56,7 +58,19 @@ pub fn get_todos(
     todos.append(&mut todos_not_due);
   } else if todos.len() > MAX_DUE {
     and_more = true;
-    todos.truncate(MAX_DUE);
+    if RANDOM_SAMPLE {
+      let mut rng = thread_rng();
+      let mut idxs = sample(&mut rng, todos.len(), MAX_DUE).into_vec();
+      idxs.sort_unstable_by(|a, b| b.cmp(a)); // sort reverse
+      let mut todos_new = Vec::with_capacity(MAX_DUE);
+      for i in idxs {
+        todos_new.push(todos.drain(i..).next().unwrap());
+      }
+      todos_new.reverse();
+      todos = todos_new;
+    } else {
+      todos.truncate(MAX_DUE);
+    }
   } else {
     todos_not_due.truncate(MAX_NOT_DUE.saturating_sub(todos.len()));
     todos.append(&mut todos_not_due);
