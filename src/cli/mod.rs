@@ -2,42 +2,42 @@ use crate::engine::{
   get_todos, try_new as try_new_engine, Allesatt, ReadWriteLogger, Store, Task, TaskId,
   TodoCompleted, TodoDate, TodoId,
 };
+use clap::{Parser, Subcommand};
 use humantime::Duration as HumanDuration;
 use std::borrow::{Borrow, BorrowMut};
 use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::{self, stderr, stdin, stdout, Stdout, Write};
-use structopt::StructOpt;
 use time::format_description::FormatItem;
 use time::macros::format_description;
 use time::OffsetDateTime;
 
 const DAY_FORMAT: &[FormatItem<'static>] = format_description!("[year]-[month]-[day]");
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "Allesatt", author, about)]
+#[derive(Debug, Parser)]
+#[command(name = "Allesatt", author, version, about)]
 struct Opts {
-  #[structopt(long, short, default_value = "-")]
+  #[arg(long, short, default_value = "-")]
   /// File to read from and write to. If missing or -, will use stdout and stdin.
   file: String,
 
-  #[structopt(subcommand)]
+  #[command(subcommand)]
   cmd: Option<Cmd>,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 enum Cmd {
-  #[structopt(visible_alias = "ls")]
+  #[clap(visible_alias("ls"))]
   /// List tasks
   List {
-    #[structopt(long)]
+    #[arg(long)]
     /// Show all todos (the default is to only show a few todos)
     all: bool,
   },
 
   /// Add a new task
   Add {
-    #[structopt(long, default_value = "30days")]
+    #[arg(long, default_value = "30days")]
     every: HumanDuration,
     description: String,
   },
@@ -68,7 +68,7 @@ impl Cmd {
 }
 
 pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
-  let opts = Opts::from_args();
+  let opts = Opts::parse();
   match opts.file.as_ref() {
     "-" => handle_command(
       opts.cmd,
