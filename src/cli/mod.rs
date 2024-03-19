@@ -79,11 +79,8 @@ pub fn cli<S: Store>(store: S) -> Result<(), Box<dyn Error>> {
     ),
     file_name => {
       let file = OpenOptions::new().read(true).append(true).open(file_name)?;
-      let x = handle_command(
-        opts.cmd,
-        try_new_engine(store, ReadWriteLogger::new(&file, &file))?,
-      );
-      x
+      let engine = try_new_engine(store, ReadWriteLogger::new(&file, &file))?;
+      handle_command(opts.cmd, engine)
     }
   }
 }
@@ -124,9 +121,14 @@ fn list_todos<S: Store, A: Allesatt<Store = S>, B: Borrow<A>, W: Write>(
   all: bool,
 ) -> Result<(), Box<dyn Error>> {
   let (todos, paused_tasks, and_more) = get_todos(app.borrow().get_store(), all);
-  let Some(max_id_len) = todos.iter().map(|(todo, _)| todo.task.to_string().len()).chain(
-    paused_tasks.iter().map(|task| task.id.to_string().len())
-  ).max() else { return Ok(()) };
+  let Some(max_id_len) = todos
+    .iter()
+    .map(|(todo, _)| todo.task.to_string().len())
+    .chain(paused_tasks.iter().map(|task| task.id.to_string().len()))
+    .max()
+  else {
+    return Ok(());
+  };
   for (todo, task) in &todos {
     write_todo(output, max_id_len, task, &todo.due)?;
   }
@@ -230,7 +232,7 @@ fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Wri
   output: &mut W,
   id: &TaskId,
 ) -> Result<(), Box<dyn Error>> {
-  let todo = app
+  let todo_id = app
     .borrow()
     .get_store()
     .find_open_todo(id)
@@ -239,7 +241,7 @@ fn do_task<S: Store, A: Allesatt<Store = S>, B: BorrowMut<A> + Borrow<A>, W: Wri
     .clone();
   app
     .borrow_mut()
-    .complete_todo(&todo, TodoCompleted::new(OffsetDateTime::now_utc()))?;
+    .complete_todo(&todo_id, TodoCompleted::new(OffsetDateTime::now_utc()))?;
   let store = app.borrow().get_store();
   let todo = store.find_open_todo(id).ok_or("Task not found")?;
   print_todo(store, output, id, &todo.id)

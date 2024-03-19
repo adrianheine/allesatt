@@ -33,6 +33,7 @@ pub trait Logger {
   fn log_unpause_task(&mut self, task_id: &TaskId) -> Result<(), Box<dyn Error>>;
 }
 
+#[derive(Debug)]
 pub struct ReadWriteLogger<R: Read, IW: Write, W: BorrowMut<IW>> {
   source: Lines<BufReader<R>>,
   target: W,
@@ -44,7 +45,7 @@ impl<R: Read, IW: Write, W: BorrowMut<IW>> ReadWriteLogger<R, IW, W> {
     Self {
       source: BufReader::new(source).lines(),
       target,
-      phantom: PhantomData::<IW>::default(),
+      phantom: PhantomData::<IW>,
     }
   }
 }

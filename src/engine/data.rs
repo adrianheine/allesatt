@@ -48,6 +48,7 @@ pub struct TodoCompleted {
 }
 
 impl TodoCompleted {
+  #[must_use]
   pub const fn new(date: TodoDate) -> Self {
     Self { date }
   }
